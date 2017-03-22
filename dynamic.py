@@ -278,15 +278,15 @@ def create_file_model(name, layer_name, fields=None, app_label='', module='', op
     return model
 
 
-def check_table_exists(table_name):
+def check_table_exists(table_name, schema='public'):
     """this function check if table exists in the database or not Return True or Flase"""
     with connection.cursor() as cursor:
         cursor.execute("""\
        SELECT EXISTS (
        SELECT 1
        FROM   information_schema.tables
-       WHERE  table_schema = 'public'
+       WHERE  table_schema = '{1}'
        AND    table_name = '{0}'
-       );""".format(table_name))
+       );""".format(table_name, schema))
         exists = cursor.fetchone()[0]
         return exists
