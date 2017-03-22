@@ -163,7 +163,7 @@ def create_rating_table(layer_name, db='default'):
         cursor.execute(RATING_TABLE)
 
 
-# TODO Add database option to Models
+# TODO Add database option to Models take alook https://docs.djangoproject.com/en/1.10/topics/db/multi-db/
 UserModel = settings.AUTH_USER_MODEL
 BASE_FIELDS = {
     'created_at': models.DateTimeField(auto_now_add=True),
