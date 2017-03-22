@@ -9,7 +9,7 @@ from django.contrib import admin
 # from attachment_manager.models import BasicModel
 
 
-def create_comment_table(layer_name):
+def create_comment_table(layer_name, db='default'):
     COMMENT_TABLE = """\
     CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_comment_{0}_id_seq
       INCREMENT 1
@@ -55,11 +55,11 @@ def create_comment_table(layer_name):
       (user_id);
 
     """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection.cursor() as cursor:
+    with connection[db].cursor() as cursor:
         cursor.execute(COMMENT_TABLE)
 
 
-def create_file_table(layer_name):
+def create_file_table(layer_name, db='default'):
     FILE_TABLE = """\
     CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_file_{0}_id_seq
           INCREMENT 1
@@ -109,11 +109,11 @@ def create_file_table(layer_name):
       (user_id);
 
     """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection.cursor() as cursor:
+    with connection[db].cursor() as cursor:
         cursor.execute(FILE_TABLE)
 
 
-def create_rating_table(layer_name):
+def create_rating_table(layer_name, db='default'):
     RATING_TABLE = """\
     CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_rating_{0}_id_seq
           INCREMENT 1
@@ -159,8 +159,11 @@ def create_rating_table(layer_name):
       USING btree
       (user_id);
     """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
+    with connection[db].cursor() as cursor:
+        cursor.execute(RATING_TABLE)
 
 
+# TODO Add database option to Models
 UserModel = settings.AUTH_USER_MODEL
 BASE_FIELDS = {
     'created_at': models.DateTimeField(auto_now_add=True),
@@ -230,7 +233,7 @@ def create_file_model(name, layer_name, fields=None, app_label='', module='', op
     Function creates a Model for Files to deal with existing table
     name => ClassName
     layer_name => paramter added to prefix to get the full table name
-    Example : create_file_model('Comment','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
+    Example : create_file_model('File','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
      """
     create_file_table(layer_name)
     fields = BASE_FIELDS.copy()
@@ -241,6 +244,56 @@ def create_file_model(name, layer_name, fields=None, app_label='', module='', op
     })
     options = {
         'db_table': 'attachment_manager_file_{0}'.format(layer_name),
+    }
+
+    class Meta:
+        # Using type('Meta', ...) gives a dictproxy error during model creation
+        pass
+
+    if app_label:
+        # app_label must be set using the Meta inner class
+        setattr(Meta, 'app_label', app_label)
+
+    # Update Meta with any options that were provided
+    if options is not None:
+        for key, value in options.iteritems():
+            setattr(Meta, key, value)
+
+    # Set up a dictionary to simulate declarations within a class
+    attrs = {'__module__': module, 'Meta': Meta}
+
+    # Add in any fields that were provided
+    if fields:
+        attrs.update(fields)
+
+    # Create the class, which automatically triggers ModelBase processing
+    model = type(name, (models.Model,), attrs)
+
+    # Create an Admin class if admin options were provided
+    if admin_opts is not None:
+        class Admin(admin.ModelAdmin):
+            pass
+
+        for key, value in admin_opts:
+            setattr(Admin, key, value)
+        admin.site.register(model, Admin)
+
+    return model
+
+
+def create_rating_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
+    """
+    Create specified model
+    Function creates a Model for Rating to deal with existing table
+    name => ClassName
+    layer_name => paramter added to prefix to get the full table name
+    Example : create_file_model('Rating','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
+     """
+    create_rating_table(layer_name)
+    fields = BASE_FIELDS.copy()
+    fields.update({'rate': models.PositiveSmallIntegerField(), })
+    options = {
+        'db_table': 'attachment_manager_rating_{0}'.format(layer_name),
     }
 
     class Meta:
