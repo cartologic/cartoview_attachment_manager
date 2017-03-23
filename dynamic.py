@@ -57,7 +57,7 @@ def create_comment_table(layer_name, db='default'):
       (user_id);
 
     """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection[db].cursor() as cursor:
+    with connection.cursor() as cursor:
         cursor.execute(COMMENT_TABLE)
 
 
@@ -161,7 +161,7 @@ def create_rating_table(layer_name, db='default'):
       USING btree
       (user_id);
     """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection[db].cursor() as cursor:
+    with connection.cursor() as cursor:
         cursor.execute(RATING_TABLE)
 
 
