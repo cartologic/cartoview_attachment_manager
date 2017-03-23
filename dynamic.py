@@ -1,3 +1,5 @@
+import os
+
 from cartoview.app_manager.models import AppInstance
 from django.conf import settings
 from django.db import connection
@@ -25,7 +27,7 @@ def create_comment_table(layer_name, db='default'):
       created_at timestamp with time zone NOT NULL,
       updated_at timestamp with time zone NOT NULL,
       feature integer,
-      identifier character varying(256) NOT NULL,
+      identifier character varying(256),
       comment text NOT NULL,
       app_instance_id integer,
       user_id integer NOT NULL,
@@ -75,7 +77,7 @@ def create_file_table(layer_name, db='default'):
       created_at timestamp with time zone NOT NULL,
       updated_at timestamp with time zone NOT NULL,
       feature integer,
-      identifier character varying(256) NOT NULL,
+      identifier character varying(256),
       file bytea NOT NULL,
       file_name character varying(150) NOT NULL,
       is_image boolean NOT NULL,
@@ -109,7 +111,7 @@ def create_file_table(layer_name, db='default'):
       (user_id);
 
     """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection[db].cursor() as cursor:
+    with connection.cursor() as cursor:
         cursor.execute(FILE_TABLE)
 
 
@@ -129,7 +131,7 @@ def create_rating_table(layer_name, db='default'):
       created_at timestamp with time zone NOT NULL,
       updated_at timestamp with time zone NOT NULL,
       feature integer,
-      identifier character varying(256) NOT NULL,
+      identifier character varying(256),
       rate smallint NOT NULL,
       app_instance_id integer,
       user_id integer NOT NULL,
@@ -171,8 +173,22 @@ BASE_FIELDS = {
     'user': models.ForeignKey(UserModel, related_name="attachment_%(class)s"),
     'app_instance': models.ForeignKey(AppInstance, related_name="attachment_%(class)s", blank=True, null=True),
     'feature': models.PositiveIntegerField(blank=True, null=True),
-    'identifier': models.CharField(max_length=256),
+    'identifier': models.CharField(max_length=256, null=True, blank=True),
 }
+
+
+def check_table_exists(table_name, schema='public'):
+    """this function check if table exists in the database or not Return True or Flase"""
+    with connection.cursor() as cursor:
+        cursor.execute("""\
+       SELECT EXISTS (
+       SELECT 1
+       FROM   information_schema.tables
+       WHERE  table_schema = '{1}'
+       AND    table_name = '{0}'
+       );""".format(table_name, schema))
+        exists = cursor.fetchone()[0]
+        return exists
 
 
 def create_comment_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
@@ -182,11 +198,13 @@ def create_comment_model(name, layer_name, fields=None, app_label='', module='',
     layer_name => paramter added to prefix to get the full table name
     Example : create_comment_model('Comment','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
      """
-    create_comment_table(layer_name)
+    table_name = 'attachment_manager_comment_{0}'.format(layer_name)
+    if not check_table_exists(table_name):
+        create_comment_table(layer_name)
     fields = BASE_FIELDS.copy()
     fields.update({'comment': models.TextField()})
     options = {
-        'db_table': 'attachment_manager_comment_{0}'.format(layer_name),
+        'db_table': table_name,
     }
     """
     Create specified model
@@ -235,7 +253,9 @@ def create_file_model(name, layer_name, fields=None, app_label='', module='', op
     layer_name => paramter added to prefix to get the full table name
     Example : create_file_model('File','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
      """
-    create_file_table(layer_name)
+    table_name = 'attachment_manager_file_{0}'.format(layer_name)
+    if not check_table_exists(table_name):
+        create_file_table(layer_name)
     fields = BASE_FIELDS.copy()
     fields.update({
         'file': models.BinaryField(),
@@ -243,7 +263,7 @@ def create_file_model(name, layer_name, fields=None, app_label='', module='', op
         'is_image': models.BooleanField(default=False)
     })
     options = {
-        'db_table': 'attachment_manager_file_{0}'.format(layer_name),
+        'db_table': table_name,
     }
 
     class Meta:
@@ -289,11 +309,13 @@ def create_rating_model(name, layer_name, fields=None, app_label='', module='', 
     layer_name => paramter added to prefix to get the full table name
     Example : create_file_model('Rating','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
      """
-    create_rating_table(layer_name)
+    table_name = 'attachment_manager_rating_{0}'.format(layer_name)
+    if not check_table_exists(table_name):
+        create_rating_table(layer_name)
     fields = BASE_FIELDS.copy()
     fields.update({'rate': models.PositiveSmallIntegerField(), })
     options = {
-        'db_table': 'attachment_manager_rating_{0}'.format(layer_name),
+        'db_table': table_name,
     }
 
     class Meta:
@@ -331,15 +353,25 @@ def create_rating_model(name, layer_name, fields=None, app_label='', module='', 
     return model
 
 
-def check_table_exists(table_name, schema='public'):
-    """this function check if table exists in the database or not Return True or Flase"""
-    with connection.cursor() as cursor:
-        cursor.execute("""\
-       SELECT EXISTS (
-       SELECT 1
-       FROM   information_schema.tables
-       WHERE  table_schema = '{1}'
-       AND    table_name = '{0}'
-       );""".format(table_name, schema))
-        exists = cursor.fetchone()[0]
-        return exists
+def test():
+    from geonode.people.models import Profile
+    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_data')
+    file_path = os.path.join(data_path, 'image.png')
+    with open(file_path) as f:
+        file = f.read()
+    model = create_file_model('File', 'hisham', app_label='fake_app', module='fake_project.fake_app.no_models')
+    model.objects.create(file=file, file_name=os.path.basename(file_path), is_image=True, user=Profile.objects.all()[0])
+
+
+def test_read():
+    # from PIL import Image
+    # import io
+    # model = create_file_model('File', 'hisham', app_label='fake_app', module='fake_project.fake_app.no_models')
+    # image_data = model.objects.all()[0].file
+    # image = Image.open(io.BytesIO(image_data))
+    # image.show()
+    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_data')
+    model = create_file_model('File', 'hisham', app_label='fake_app', module='fake_project.fake_app.no_models')
+    obj = model.objects.all().last()
+    with open(os.path.join(data_path, 'output_' + obj.file_name), 'wb') as f:
+        f.write(obj.file)
