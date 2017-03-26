@@ -4,5 +4,6 @@
 - [x] Specify Database in the Connection
 - [x] Add Support of multiple databases
 - [x] Test Case for files
+- [x] Testing Pages
 - [ ] API
 - [ ] Frontend

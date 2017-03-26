@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block body_directives %}
+
+{% endblock %}
+{% block header_toolbar %}{% endblock %}
+{% block body %}
+    <div class="full-height" layout-align="space-around stretch" layout="row" layout-sm="column" layout-xs="column"
+         style="padding-top: 50px">
+        <h1>Upload File</h1>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button class="btn btn-primary" type="submit">Upload</button>
+        </form>
+    </div>
+
+{% endblock %}
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ STATIC_URL }}cartoview/css/index.css">
+    <style>
+        .content-ct-inner {
+            position: relative;
+            top: 0px;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            overflow: auto;
+        }
+    </style>
+{% endblock %}
