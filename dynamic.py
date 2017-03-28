@@ -1,5 +1,4 @@
 import os
-
 from cartoview.app_manager.models import AppInstance
 from django.conf import settings
 from django.db import connection

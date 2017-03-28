@@ -1,12 +1,12 @@
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
-from .forms import Upload_Form
-from .dynamic import create_file_model
+from .forms import Upload_Form, Comment_Form
+from .dynamic import create_file_model, create_comment_model
 from geonode.layers.models import Layer
+from .dynamic import check_table_exists
 
 
-# Create your views here.
 def upload(request):
     form = Upload_Form()
     if request.method == 'POST':
@@ -17,13 +17,25 @@ def upload(request):
                                       module='fake_project.fake_app.no_models')
             model.objects.create(file=file.read(), file_name=file.name, user=request.user,
                                  feature=form.cleaned_data['feature'])
-        return HttpResponseRedirect('/attachment_file/view')
+        return HttpResponseRedirect('/attachment_manager/view/files')
     return render(request, template_name='attachment_manager/test.html', context={'form': form})
+
+
+def comment(request):
+    form = Comment_Form()
+    if request.method == 'POST':
+        form = Comment_Form(request.POST or None)
+        if form.is_valid():
+            comment = form.cleaned_data['comment']
+            model = create_comment_model('Comment', form.cleaned_data['layer'], app_label='fake_app',
+                                         module='fake_project.fake_app.no_models')
+            model.objects.create(comment=comment, user=request.user, feature=form.cleaned_data['feature'])
+        return HttpResponseRedirect('/attachment_manager/view/comments')
+    return render(request, template_name='attachment_manager/test1.html', context={'form': form})
 
 
 def view_all_files(request):
     result = []
-    from .dynamic import check_table_exists
     for layer in Layer.objects.all():
         if check_table_exists(table_name='attachment_manager_file_%s' % layer.name):
             model = create_file_model('File', layer.name, app_label='fake_app',
@@ -31,6 +43,18 @@ def view_all_files(request):
             if model.objects.all().count() > 0:
                 result.append({'%s' % layer.name: model.objects.all()})
     return render(request, template_name='attachment_manager/view.html', context={'files': result, "len": len(result)})
+
+
+def view_all_Comments(request):
+    result = []
+    for layer in Layer.objects.all():
+        if check_table_exists(table_name='attachment_manager_comment_%s' % layer.name):
+            model = create_comment_model('Comment', layer.name, app_label='fake_app',
+                                         module='fake_project.fake_app.no_models')
+            if model.objects.all().count() > 0:
+                result.append({'%s' % layer.name: model.objects.all()})
+    return render(request, template_name='attachment_manager/view1.html',
+                  context={'comments': result, "len": len(result)})
 
 
 def download_blob(request, layer_name, id):

@@ -5,15 +5,17 @@
 {% block header_toolbar %}{% endblock %}
 {% block body %}
     <div class="full-height" layout-align="space-around stretch" layout="row" layout-sm="column" layout-xs="column">
-        <h2>Files list</h2>
-        {% for file in files %}
+        <h2>Comments list</h2>
+        {% for file in comments %}
 
             {% for k,v in file.items %}
                 <section>
-                    <h3>{{ k }} Files</h3>
+                    <h3>{{ k }} comments</h3>
                     <ul>
                         {% for f in v %}
-                            <li><a href="{% url 'attachment_down' layer_name=k id=f.id %}">File-{{ f.file_name }}</a>
+                            <li>
+                                <p>USER-{{ f.user.username }}</p>
+                                <p>Comment: {{ f.comment }}</p>
                             </li>
                         {% endfor %}
                     </ul>
