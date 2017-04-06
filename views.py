@@ -1,6 +1,9 @@
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
+from rest_framework import generics
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from .forms import Upload_Form, Comment_Form
 from .dynamic import create_file_model, create_comment_model
 from geonode.layers.models import Layer
@@ -29,7 +32,7 @@ def comment(request):
             comment = form.cleaned_data['comment']
             model = create_comment_model('Comment', form.cleaned_data['layer'], app_label='fake_app',
                                          module='fake_project.fake_app.no_models')
-            model.objects.create(comment=comment, user=request.user, feature=form.cleaned_data['feature'])
+            obj = model.objects.create(comment=comment, user=request.user, feature=form.cleaned_data['feature'])
         return HttpResponseRedirect('/attachment_manager/view/comments')
     return render(request, template_name='attachment_manager/test1.html', context={'form': form})
 
@@ -46,6 +49,7 @@ def view_all_files(request):
 
 
 def view_all_Comments(request):
+    from .dynamic import create_comment_resource
     result = []
     for layer in Layer.objects.all():
         if check_table_exists(table_name='attachment_manager_comment_%s' % layer.name):
@@ -66,3 +70,31 @@ def download_blob(request, layer_name, id):
     response = HttpResponse(contents)
     response['Content-Disposition'] = 'attachment; filename=%s' % (name)
     return response
+
+
+@api_view(['GET', 'POST'])
+def hello_world(request, layer_name):
+    if request.method == 'POST':
+        return Response({"message": "Got some data!", "data": request.data})
+    return Response({"message": "Hello, world!"})
+
+
+from .serializers import comment_serializer
+
+
+class CommentList(generics.ListCreateAPIView):
+    def get_queryset(self):
+        model = self.get_model()
+        return model.objects.all()
+
+    def get_serializer_class(self):
+        model = self.get_model()
+        serializer = comment_serializer(model)
+        return serializer
+
+    def get_model(self):
+        layer_name = self.kwargs['layer']
+        print layer_name
+        model = create_comment_model('Comment_{0}'.format(layer_name), layer_name, app_label='{0}'.format(layer_name),
+                                     module='{0}_project.{0}.{0}_models'.format(layer_name))
+        return model

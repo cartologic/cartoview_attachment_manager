@@ -1,13 +1,20 @@
 import os
+
+import gc
+from avatar.templatetags.avatar_tags import avatar_url
 from cartoview.app_manager.models import AppInstance
+from cartoview.app_manager.rest import AppInstanceResource
 from django.conf import settings
 from django.db import connection
 from uuid import uuid4
 from django.db import models
 from django.contrib import admin
 
-
 # from attachment_manager.models import BasicModel
+from tastypie import fields
+from tastypie.authorization import Authorization
+from tastypie.constants import ALL, ALL_WITH_RELATIONS
+from tastypie.resources import ModelResource
 
 
 def create_comment_table(layer_name, db='default'):
@@ -176,20 +183,6 @@ BASE_FIELDS = {
 }
 
 
-def check_table_exists(table_name, schema='public'):
-    """this function check if table exists in the database or not Return True or Flase"""
-    with connection.cursor() as cursor:
-        cursor.execute("""\
-       SELECT EXISTS (
-       SELECT 1
-       FROM   information_schema.tables
-       WHERE  table_schema = '{1}'
-       AND    table_name = '{0}'
-       );""".format(table_name, schema))
-        exists = cursor.fetchone()[0]
-        return exists
-
-
 def create_comment_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
     """
     Function creates a Model for Comments to deal with existing table
@@ -197,9 +190,19 @@ def create_comment_model(name, layer_name, fields=None, app_label='', module='',
     layer_name => paramter added to prefix to get the full table name
     Example : create_comment_model('Comment','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
      """
+    from django.db.models.loading import cache
+    from django.db.backends import utils
+    reload(utils)
+    try:
+        print ">>>>>>>>>>>>>>", cache.all_models[app_label]
+        cache.all_models.__delitem__(app_label)
+        gc.collect()
+    except:
+        pass
     table_name = 'attachment_manager_comment_{0}'.format(layer_name)
     if not check_table_exists(table_name):
         create_comment_table(layer_name)
+
     fields = BASE_FIELDS.copy()
     fields.update({'comment': models.TextField()})
     options = {
@@ -240,6 +243,14 @@ def create_comment_model(name, layer_name, fields=None, app_label='', module='',
         for key, value in admin_opts:
             setattr(Admin, key, value)
         admin.site.register(model, Admin)
+    # x = check_table_exists(table_name)
+    # while x:
+    #     try:
+    #         model.objects.first()
+    #         x = False
+    #     except:
+    #         x = check_table_exists(table_name)
+    #         continue
 
     return model
 
@@ -374,3 +385,52 @@ def test_read():
     obj = model.objects.all().last()
     with open(os.path.join(data_path, 'output_' + obj.file_name), 'wb') as f:
         f.write(obj.file)
+
+
+class CommentBaseResource(ModelResource):
+    def save(self, bundle, skip_errors=False):
+        bundle.obj.user = bundle.request.user
+        return super(CommentBaseResource, self).save(bundle, skip_errors)
+
+    def dehydrate_user(self, bundle):
+        return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
+
+
+def create_comment_resource(name, model, fields=None, module=''):
+    fields = {'user': fields.DictField(readonly=True)}
+    fields.update({'rate': models.PositiveSmallIntegerField(), })
+    options = {
+        'queryset': model.objects.all(),
+        'filtering': {"identifier": ALL,
+                      'feature': ALL,
+                      'app_instance': ALL_WITH_RELATIONS},
+        'can_edit': True,
+        'authorization': Authorization()
+    }
+
+    class Meta:
+        pass
+
+    if options is not None:
+        for key, value in options.iteritems():
+            setattr(Meta, key, value)
+    attrs = {'__module__': module, 'Meta': Meta}
+    if fields:
+        attrs.update(fields)
+    resource = type(name, (CommentBaseResource,), attrs)
+
+    return resource
+
+
+def check_table_exists(table_name, schema='public'):
+    """this function check if table exists in the database or not Return True or Flase"""
+    with connection.cursor() as cursor:
+        cursor.execute("""\
+       SELECT EXISTS (
+   SELECT 1
+   FROM   pg_tables
+   WHERE  schemaname = '{1}'
+   AND    tablename = '{0}'
+   );""".format(table_name, schema))
+        exists = cursor.fetchone()[0]
+        return exists
