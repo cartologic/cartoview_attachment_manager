@@ -182,77 +182,44 @@ BASE_FIELDS = {
     'identifier': models.CharField(max_length=256, null=True, blank=True),
 }
 
+_comments_models_cache = {}
 
-def create_comment_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
-    """
-    Function creates a Model for Comments to deal with existing table
-    name => ClassName
-    layer_name => paramter added to prefix to get the full table name
-    Example : create_comment_model('Comment','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
-     """
-    from django.db.models.loading import cache
-    from django.db.backends import utils
-    reload(utils)
-    try:
-        print ">>>>>>>>>>>>>>", cache.all_models[app_label]
-        cache.all_models.__delitem__(app_label)
-        gc.collect()
-    except:
-        pass
+class BaseCommentModel(models.Model):
+    # _db = 'default'
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    user = models.ForeignKey(UserModel, related_name="attachment_%(class)s")
+    app_instance = models.ForeignKey(AppInstance, related_name="attachment_%(class)s", blank=True, null=True)
+    feature = models.PositiveIntegerField(blank=True, null=True)
+    identifier = models.CharField(max_length=256, null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+def create_comment_model(layer_name):
+    if layer_name in _comments_models_cache:
+        # print 'from cache: ', layer_name
+        return _comments_models_cache[layer_name]
+    # print 'creating model: ', layer_name
+
     table_name = 'attachment_manager_comment_{0}'.format(layer_name)
     if not check_table_exists(table_name):
         create_comment_table(layer_name)
 
-    fields = BASE_FIELDS.copy()
-    fields.update({'comment': models.TextField()})
-    options = {
-        'db_table': table_name,
-    }
-    """
-    Create specified model
-    """
-
     class Meta:
-        # Using type('Meta', ...) gives a dictproxy error during model creation
-        pass
+        db_table = table_name
+        managed = False
 
-    if app_label:
-        # app_label must be set using the Meta inner class
-        setattr(Meta, 'app_label', app_label)
+    model_attrs = {
+        '__module__': __name__,  # set module name to current module name
+        'Meta': Meta,
+    }
+    model_attrs.update({'comment': models.TextField()})
 
-    # Update Meta with any options that were provided
-    if options is not None:
-        for key, value in options.iteritems():
-            setattr(Meta, key, value)
-
-    # Set up a dictionary to simulate declarations within a class
-    attrs = {'__module__': module, 'Meta': Meta}
-
-    # Add in any fields that were provided
-    if fields:
-        attrs.update(fields)
-
-    # Create the class, which automatically triggers ModelBase processing
-    model = type(name, (models.Model,), attrs)
-
-    # Create an Admin class if admin options were provided
-    if admin_opts is not None:
-        class Admin(admin.ModelAdmin):
-            pass
-
-        for key, value in admin_opts:
-            setattr(Admin, key, value)
-        admin.site.register(model, Admin)
-    # x = check_table_exists(table_name)
-    # while x:
-    #     try:
-    #         model.objects.first()
-    #         x = False
-    #     except:
-    #         x = check_table_exists(table_name)
-    #         continue
-
+    model = type(table_name, (BaseCommentModel,), model_attrs)
+    _comments_models_cache[layer_name] = model
     return model
+
 
 
 def create_file_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
