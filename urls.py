@@ -1,7 +1,7 @@
 from django.conf.urls import url, include, patterns
 from .views import *
 
-url_patterns = patterns(
+urlpatterns = patterns(
     url(r'^attachment_manager/$', upload),
     url(r'^attachment_manager/view/files$', view_all_files),
     url(r'^attachment_manager/comment$', comment),
