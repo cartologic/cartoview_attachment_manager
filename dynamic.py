@@ -173,18 +173,11 @@ def create_rating_table(layer_name, db='default'):
 
 # TODO Add database option to Models take alook https://docs.djangoproject.com/en/1.10/topics/db/multi-db/
 UserModel = settings.AUTH_USER_MODEL
-BASE_FIELDS = {
-    'created_at': models.DateTimeField(auto_now_add=True),
-    'updated_at': models.DateTimeField(auto_now=True),
-    'user': models.ForeignKey(UserModel, related_name="attachment_%(class)s"),
-    'app_instance': models.ForeignKey(AppInstance, related_name="attachment_%(class)s", blank=True, null=True),
-    'feature': models.PositiveIntegerField(blank=True, null=True),
-    'identifier': models.CharField(max_length=256, null=True, blank=True),
-}
 
 _comments_models_cache = {}
 
-class BaseCommentModel(models.Model):
+
+class BaseAttachmentModel(models.Model):
     # _db = 'default'
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -195,6 +188,7 @@ class BaseCommentModel(models.Model):
 
     class Meta:
         abstract = True
+
 
 def create_comment_model(layer_name):
     if layer_name in _comments_models_cache:
@@ -216,117 +210,64 @@ def create_comment_model(layer_name):
     }
     model_attrs.update({'comment': models.TextField()})
 
-    model = type(table_name, (BaseCommentModel,), model_attrs)
+    model = type(table_name, (BaseAttachmentModel,), model_attrs)
     _comments_models_cache[layer_name] = model
     return model
 
 
+_files_models_cache = {}
 
-def create_file_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
-    """
-    Create specified model
-    Function creates a Model for Files to deal with existing table
-    name => ClassName
-    layer_name => paramter added to prefix to get the full table name
-    Example : create_file_model('File','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
-     """
+
+def create_file_model(layer_name):
+    if layer_name in _files_models_cache:
+        return _files_models_cache[layer_name]
+
     table_name = 'attachment_manager_file_{0}'.format(layer_name)
     if not check_table_exists(table_name):
         create_file_table(layer_name)
-    fields = BASE_FIELDS.copy()
-    fields.update({
+
+    class Meta:
+        db_table = table_name
+        managed = False
+
+    model_attrs = {
+        '__module__': __name__,
+        'Meta': Meta,
+    }
+    model_attrs.update({
         'file': models.BinaryField(),
         'file_name': models.CharField(max_length=150),
         'is_image': models.BooleanField(default=False)
     })
-    options = {
-        'db_table': table_name,
-    }
 
-    class Meta:
-        # Using type('Meta', ...) gives a dictproxy error during model creation
-        pass
-
-    if app_label:
-        # app_label must be set using the Meta inner class
-        setattr(Meta, 'app_label', app_label)
-
-    # Update Meta with any options that were provided
-    if options is not None:
-        for key, value in options.iteritems():
-            setattr(Meta, key, value)
-
-    # Set up a dictionary to simulate declarations within a class
-    attrs = {'__module__': module, 'Meta': Meta}
-
-    # Add in any fields that were provided
-    if fields:
-        attrs.update(fields)
-
-    # Create the class, which automatically triggers ModelBase processing
-    model = type(name, (models.Model,), attrs)
-
-    # Create an Admin class if admin options were provided
-    if admin_opts is not None:
-        class Admin(admin.ModelAdmin):
-            pass
-
-        for key, value in admin_opts:
-            setattr(Admin, key, value)
-        admin.site.register(model, Admin)
-
+    model = type(table_name, (BaseAttachmentModel,), model_attrs)
+    _files_models_cache[layer_name] = model
     return model
 
 
-def create_rating_model(name, layer_name, fields=None, app_label='', module='', options=None, admin_opts=None):
-    """
-    Create specified model
-    Function creates a Model for Rating to deal with existing table
-    name => ClassName
-    layer_name => paramter added to prefix to get the full table name
-    Example : create_file_model('Rating','hisham',app_label='fake_app',module='fake_project.fake_app.no_models')
-     """
+_rating_models_cache = {}
+
+
+def create_rating_model(layer_name):
+    if layer_name in _rating_models_cache:
+        return _rating_models_cache[layer_name]
+
     table_name = 'attachment_manager_rating_{0}'.format(layer_name)
     if not check_table_exists(table_name):
         create_rating_table(layer_name)
-    fields = BASE_FIELDS.copy()
-    fields.update({'rate': models.PositiveSmallIntegerField(), })
-    options = {
-        'db_table': table_name,
-    }
 
     class Meta:
-        # Using type('Meta', ...) gives a dictproxy error during model creation
-        pass
+        db_table = table_name
+        managed = False
 
-    if app_label:
-        # app_label must be set using the Meta inner class
-        setattr(Meta, 'app_label', app_label)
+    model_attrs = {
+        '__module__': __name__,
+        'Meta': Meta,
+    }
+    model_attrs.update({'rate': models.PositiveSmallIntegerField(), })
 
-    # Update Meta with any options that were provided
-    if options is not None:
-        for key, value in options.iteritems():
-            setattr(Meta, key, value)
-
-    # Set up a dictionary to simulate declarations within a class
-    attrs = {'__module__': module, 'Meta': Meta}
-
-    # Add in any fields that were provided
-    if fields:
-        attrs.update(fields)
-
-    # Create the class, which automatically triggers ModelBase processing
-    model = type(name, (models.Model,), attrs)
-
-    # Create an Admin class if admin options were provided
-    if admin_opts is not None:
-        class Admin(admin.ModelAdmin):
-            pass
-
-        for key, value in admin_opts:
-            setattr(Admin, key, value)
-        admin.site.register(model, Admin)
-
+    model = type(table_name, (BaseAttachmentModel,), model_attrs)
+    _rating_models_cache[layer_name] = model
     return model
 
 
@@ -336,7 +277,7 @@ def test():
     file_path = os.path.join(data_path, 'image.png')
     with open(file_path) as f:
         file = f.read()
-    model = create_file_model('File', 'hisham', app_label='fake_app', module='fake_project.fake_app.no_models')
+    model = create_file_model('hisham')
     model.objects.create(file=file, file_name=os.path.basename(file_path), is_image=True, user=Profile.objects.all()[0])
 
 
@@ -348,56 +289,22 @@ def test_read():
     # image = Image.open(io.BytesIO(image_data))
     # image.show()
     data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_data')
-    model = create_file_model('File', 'hisham', app_label='fake_app', module='fake_project.fake_app.no_models')
+    model = create_file_model('hisham')
     obj = model.objects.all().last()
     with open(os.path.join(data_path, 'output_' + obj.file_name), 'wb') as f:
         f.write(obj.file)
 
 
-class CommentBaseResource(ModelResource):
-    def save(self, bundle, skip_errors=False):
-        bundle.obj.user = bundle.request.user
-        return super(CommentBaseResource, self).save(bundle, skip_errors)
-
-    def dehydrate_user(self, bundle):
-        return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
-
-
-def create_comment_resource(name, model, fields=None, module=''):
-    fields = {'user': fields.DictField(readonly=True)}
-    fields.update({'rate': models.PositiveSmallIntegerField(), })
-    options = {
-        'queryset': model.objects.all(),
-        'filtering': {"identifier": ALL,
-                      'feature': ALL,
-                      'app_instance': ALL_WITH_RELATIONS},
-        'can_edit': True,
-        'authorization': Authorization()
-    }
-
-    class Meta:
-        pass
-
-    if options is not None:
-        for key, value in options.iteritems():
-            setattr(Meta, key, value)
-    attrs = {'__module__': module, 'Meta': Meta}
-    if fields:
-        attrs.update(fields)
-    resource = type(name, (CommentBaseResource,), attrs)
-
-    return resource
-
-
+# Note Works Only with Postgres 9.4 or heigher
 def check_table_exists(table_name, schema='public'):
     """this function check if table exists in the database or not Return True or Flase"""
     with connection.cursor() as cursor:
         cursor.execute("""\
-       SELECT EXISTS (
-   SELECT 1
-   FROM   pg_tables
-   WHERE  schemaname = '{1}'
-   AND    tablename = '{0}'
-   );""".format(table_name, schema))
+           SELECT EXISTS (
+       SELECT 1
+       FROM   pg_tables
+       WHERE  schemaname = '{1}'
+       AND    tablename = '{0}'
+       );""".format(table_name, schema))
         exists = cursor.fetchone()[0]
         return exists
