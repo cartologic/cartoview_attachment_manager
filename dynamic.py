@@ -1,20 +1,11 @@
 import os
-
-import gc
-from avatar.templatetags.avatar_tags import avatar_url
 from cartoview.app_manager.models import AppInstance
-from cartoview.app_manager.rest import AppInstanceResource
 from django.conf import settings
 from django.db import connection
 from uuid import uuid4
 from django.db import models
-from django.contrib import admin
 
-# from attachment_manager.models import BasicModel
-from tastypie import fields
-from tastypie.authorization import Authorization
-from tastypie.constants import ALL, ALL_WITH_RELATIONS
-from tastypie.resources import ModelResource
+
 
 
 def create_comment_table(layer_name, db='default'):
@@ -33,7 +24,6 @@ def create_comment_table(layer_name, db='default'):
       created_at timestamp with time zone NOT NULL,
       updated_at timestamp with time zone NOT NULL,
       feature integer,
-      identifier character varying(256),
       comment text NOT NULL,
       app_instance_id integer,
       user_id integer NOT NULL,
@@ -83,7 +73,6 @@ def create_file_table(layer_name, db='default'):
       created_at timestamp with time zone NOT NULL,
       updated_at timestamp with time zone NOT NULL,
       feature integer,
-      identifier character varying(256),
       file bytea NOT NULL,
       file_name character varying(150) NOT NULL,
       is_image boolean NOT NULL,
@@ -137,7 +126,6 @@ def create_rating_table(layer_name, db='default'):
       created_at timestamp with time zone NOT NULL,
       updated_at timestamp with time zone NOT NULL,
       feature integer,
-      identifier character varying(256),
       rate smallint NOT NULL,
       app_instance_id integer,
       user_id integer NOT NULL,
@@ -184,7 +172,6 @@ class BaseAttachmentModel(models.Model):
     user = models.ForeignKey(UserModel, related_name="attachment_%(class)s")
     app_instance = models.ForeignKey(AppInstance, related_name="attachment_%(class)s", blank=True, null=True)
     feature = models.PositiveIntegerField(blank=True, null=True)
-    identifier = models.CharField(max_length=256, null=True, blank=True)
 
     class Meta:
         abstract = True
