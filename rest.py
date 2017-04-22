@@ -1,15 +1,17 @@
 import django
 from avatar.templatetags.avatar_tags import avatar_url
-from cartoview.app_manager.rest import AppInstanceResource, ProfileResource
+from cartoview.app_manager.rest import AppInstanceResource, ProfileResource, ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned, ImproperlyConfigured
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
+from tastypie.bundle import Bundle
 from tastypie.constants import ALL_WITH_RELATIONS, ALL
 from tastypie.authorization import Authorization
 from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound
 from tastypie.resources import ModelResource
 from tastypie import fields
 from .dynamic import *
+from tastypie.resources import ReverseOneToOneDescriptor
 from tastypie.utils import (
     dict_strip_unicode_keys, is_valid_jsonp_callback_value, string_to_python,
     trailing_slash,
@@ -23,12 +25,11 @@ except (ImproperlyConfigured, ImportError):
 
 
 class BaseAttachment(ModelResource):
-    user = fields.ForeignKey(ProfileResource,'user',readonly=True)
-    app_instance = fields.ForeignKey(AppInstanceResource, 'app_instance', null=True, blank=True)
+    app_instance = fields.ForeignKey(AppInstanceResource, 'app_instance', null=False, blank=False)
     created_at = fields.ApiField('created_at', readonly=True)
     updated_at = fields.ApiField('updated_at', readonly=True)
-    feature = fields.ApiField('feature', null=True, blank=True)
-    user_preview=fields.DictField(readonly=True)
+    feature = fields.ApiField('feature',default=0)
+    user=fields.DictField(readonly=True)
 
     class Meta:
         filtering = {"app_instance": ALL_WITH_RELATIONS,
@@ -50,9 +51,12 @@ class CommentResource(BaseAttachment):
             raise BadRequest("layer_name paramter not found")
 
     def save(self, bundle, skip_errors=False):
-        bundle.obj.user = bundle.request.user
+        from geonode.people.models import Profile
+        # bundle.obj.user = bundle.request.user
+        bundle.obj.user = Profile.objects.all()[1]
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name:
+            print bundle.obj.app_instance
             return super(CommentResource, self).save(bundle, skip_errors)
 
     def obj_create(self, bundle, **kwargs):
@@ -72,7 +76,59 @@ class CommentResource(BaseAttachment):
 
         else:
             raise BadRequest("layer_name paramter not Provided")
+    def full_hydrate(self, bundle):
+        """
+        Given a populated bundle, distill it and turn it back into
+        a full-fledged object instance.
+        """
+        layer_name = bundle.request.GET.get('layer_name', None)
+        if layer_name:
+            model = create_comment_model(layer_name)
+            bundle.obj = model()
+        else:
+            raise BadRequest("layer_name paramter not Provided")
 
+        bundle = self.hydrate(bundle)
+
+        for field_name, field_object in self.fields.items():
+            if field_object.readonly is True:
+                continue
+
+            # Check for an optional method to do further hydration.
+            method = getattr(self, "hydrate_%s" % field_name, None)
+
+            if method:
+                bundle = method(bundle)
+
+            if field_object.attribute:
+                value = field_object.hydrate(bundle)
+
+                # NOTE: We only get back a bundle when it is related field.
+                if isinstance(value, Bundle) and value.errors.get(field_name):
+                    bundle.errors[field_name] = value.errors[field_name]
+
+                if value is not None or field_object.null:
+                    # We need to avoid populating M2M data here as that will
+                    # cause things to blow up.
+                    if not field_object.is_related:
+                        setattr(bundle.obj, field_object.attribute, value)
+                    elif not field_object.is_m2m:
+                        if value is not None:
+                            # NOTE: A bug fix in Django (ticket #18153) fixes incorrect behavior
+                            # which Tastypie was relying on.  To fix this, we store value.obj to
+                            # be saved later in save_related.
+                            try:
+                                setattr(bundle.obj, field_object.attribute, value.obj)
+                            except (ValueError, ObjectDoesNotExist):
+                                bundle.related_objects_to_save[field_object.attribute] = value.obj
+                        elif field_object.null:
+                            if not isinstance(getattr(bundle.obj.__class__, field_object.attribute, None), ReverseOneToOneDescriptor):
+                                # only update if not a reverse one to one field
+                                setattr(bundle.obj, field_object.attribute, value)
+                        elif field_object.blank:
+                            continue
+
+        return bundle
     def build_filters_custom(self, queryset, filters=None, ignore_bad_filters=False):
         """
         Given a dictionary of filters, create the necessary ORM-level filters.
@@ -198,7 +254,7 @@ class CommentResource(BaseAttachment):
         else:
             raise BadRequest("layer_name paramter not found")
 
-    def dehydrate_user_preview(self, bundle):
+    def dehydrate_user(self, bundle):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
 
 
@@ -366,7 +422,7 @@ class FileResource(BaseAttachment):
         else:
             raise BadRequest("layer_name paramter not found")
 
-    def dehydrate_user_preview(self, bundle):
+    def dehydrate_user(self, bundle):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
 
     def dehydrate_file(self, bundle):

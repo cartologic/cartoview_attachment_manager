@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
 {% block body_directives %}
-
 {% endblock %}
 {% block header_toolbar %}{% endblock %}
 {% block body %}
@@ -12,6 +11,11 @@
             {{ form.as_p }}
             <button class="btn btn-primary" type="submit">Upload</button>
         </form>
+        <div ng-app="cartoview.userAttachments">
+            <h1>asdasd</h1>
+            <cartoview-comments layer-name="hisham"></cartoview-comments>
+        </div>
+
     </div>
 
 {% endblock %}
@@ -27,4 +31,41 @@
             overflow: auto;
         }
     </style>
+        <script type="text/javascript" src='/static/vendor/angular/angular.min.js'></script>
+    <script type="text/javascript" src='/static/vendor/angular-animate/angular-animate.min.js'></script>
+    <script type="text/javascript" src='/static/vendor/angular-aria/angular-aria.min.js'></script>
+    <script type="text/javascript" src='/static/vendor/angular-material/angular-material.min.js'></script>
+    <script type="text/javascript">
+        angular.module('cartoview.urlsHelper',[]).constant('urls', {
+            BASE_URL: "/",
+            GEOSERVER_BASE_URL: "http://localhost:8080/geoserver/",
+            PROXY_URL: "/proxy/?url=",
+            CARTOVIEW_PROXY_URL: "/cartoview_proxy/geoserver/",
+            MEDIA_URL: "/uploaded/",
+            STATIC_URL: "/static/",
+            APPS_BASE_URL: "/apps/",
+            REST_URL: "/apps/rest/app_manager/",
+            GEONODE_REST_URL: "/api//"
+        });
+        angular.module('cartoview.userInfo',[]).service("cartoviewUser",function () {
+            this.isAuthenticated = false;
+            this.isSuperUser = false;
+            this.loginUrl = "/account/login/?next=/apps/cartoview_feature_list/3/view/";
+            this.logoutUrl = "/account/logout/";
+            this.registerUrl = "/account/signup/";
+            //
+        });
+    </script>
+    <script type="text/javascript">
+        angular.module('cartoview.base',[]);
+    </script>
+
+    <script type="text/javascript" src="/static/vendor/ol3/ol.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/proj4js/2.3.14/proj4.js"></script>
+    <script type="text/javascript" src="/static/vendor/angular-resource/angular-resource.min.js"></script>
+    <script type="text/javascript" src="/static/vendor/ng-image-appear/dist/ng-image-appear.min.js"></script>
+    <script type="text/javascript" src="/static/vendor/lf-ng-md-file-input/dist/lf-ng-md-file-input.min.js"></script>
+    <script type="text/javascript" src="/static/cartoview_attachment_manager/js/app.js"></script>
+    <script type="text/javascript" src="/static/cartoview_attachment_manager/js/services.js"></script>
+    <script type="text/javascript" src="/static/cartoview_attachment_manager/js/directives.js"></script>
 {% endblock %}
