@@ -1,6 +1,6 @@
 import django
 from avatar.templatetags.avatar_tags import avatar_url
-from cartoview.app_manager.rest import AppInstanceResource
+from cartoview.app_manager.rest import AppInstanceResource, ProfileResource
 from django.core.exceptions import MultipleObjectsReturned, ImproperlyConfigured
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
@@ -23,15 +23,17 @@ except (ImproperlyConfigured, ImportError):
 
 
 class BaseAttachment(ModelResource):
-    user = fields.DictField(readonly=True)
+    user = fields.ForeignKey(ProfileResource,'user',readonly=True)
     app_instance = fields.ForeignKey(AppInstanceResource, 'app_instance', null=True, blank=True)
     created_at = fields.ApiField('created_at', readonly=True)
     updated_at = fields.ApiField('updated_at', readonly=True)
     feature = fields.ApiField('feature', null=True, blank=True)
+    user_preview=fields.DictField(readonly=True)
 
     class Meta:
         filtering = {"app_instance": ALL_WITH_RELATIONS,
-                     "feature": ALL}
+                     "feature": ALL,
+                     "user": ALL_WITH_RELATIONS}
         can_edit = True
         authorization = Authorization()
 
@@ -196,7 +198,7 @@ class CommentResource(BaseAttachment):
         else:
             raise BadRequest("layer_name paramter not found")
 
-    def dehydrate_user(self, bundle):
+    def dehydrate_user_preview(self, bundle):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
 
 
@@ -364,7 +366,7 @@ class FileResource(BaseAttachment):
         else:
             raise BadRequest("layer_name paramter not found")
 
-    def dehydrate_user(self, bundle):
+    def dehydrate_user_preview(self, bundle):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
 
     def dehydrate_file(self, bundle):
