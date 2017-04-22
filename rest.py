@@ -10,11 +10,11 @@ from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound
 from tastypie.resources import ModelResource
 from tastypie import fields
 from .dynamic import *
-from cartoview.app_manager.api import rest_api
 from tastypie.utils import (
     dict_strip_unicode_keys, is_valid_jsonp_callback_value, string_to_python,
     trailing_slash,
 )
+import base64
 
 try:
     from django.contrib.gis.db.models.fields import GeometryField
@@ -214,12 +214,9 @@ class FileResource(BaseAttachment):
             raise BadRequest("layer_name paramter not found")
 
     def save(self, bundle, skip_errors=False):
-        from geonode.people.models import Profile
-        u = Profile.objects.last()
-        bundle.obj.user = u
-        import base64
-        bundle.obj.file=base64.b64decode(bundle.obj.file)
-        # bundle.obj.user = bundle.request.user
+
+        bundle.obj.file = base64.b64decode(bundle.obj.file)
+        bundle.obj.user = bundle.request.user
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name:
             return super(FileResource, self).save(bundle, skip_errors)
@@ -371,5 +368,4 @@ class FileResource(BaseAttachment):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
 
     def dehydrate_file(self, bundle):
-        import base64
         return base64.b64encode(bundle.obj.file)
