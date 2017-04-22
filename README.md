@@ -5,5 +5,5 @@
 - [x] Add Support of multiple databases
 - [x] Test Case for files
 - [x] Testing Pages
-- [ ] API
+- [x] API (Rating Not Complete yet)
 - [ ] Frontend
