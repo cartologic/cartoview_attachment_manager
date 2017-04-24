@@ -25,46 +25,6 @@ from tastypie.utils import (
 import base64
 import os
 
-
-class MultipartFormSerializer(Serializer):
-    def __init__(self, *args, **kwargs):
-        self.content_types['file_upload'] = 'multipart/form-data'
-        self.formats.append('file_upload')
-        super(MultipartFormSerializer, self).__init__(*args, **kwargs)
-
-    def from_file_upload(self, data, options=None):
-        print options
-        request = options['request']
-        deserialized = {}
-        for k in request.POST:
-            deserialized[str(k)] = str(request.POST[k])
-        for k in request.FILES:
-            deserialized[str(k)] = request.FILES[k]
-        return deserialized
-
-    # add request param to extract files
-    def deserialize(self, content, request=None, format='application/json'):
-        desired_format = None
-
-        format = format.split(';')[0]
-
-        for short_format, long_format in self.content_types.items():
-            if format == long_format:
-                if hasattr(self, "from_%s" % short_format):
-                    desired_format = short_format
-                    break
-
-        if desired_format is None:
-            raise UnsupportedFormat(
-                "The format indicated '%s' had no available deserialization method. Please check your ``formats`` and ``content_types`` on your Serializer." % format)
-
-        if isinstance(content, six.binary_type) and desired_format != 'file_upload':
-            content = force_text(content)
-
-        deserialized = getattr(self, "from_%s" % desired_format)(content, {'request': request})
-        return deserialized
-
-
 try:
     from django.contrib.gis.db.models.fields import GeometryField
 except (ImproperlyConfigured, ImportError):
@@ -322,7 +282,6 @@ class FileResource(BaseAttachment):
                      "file_name": ALL}
         can_edit = True
         authorization = Authorization()
-        # serializer = MultipartFormSerializer()
 
     def deserialize(self, request, data, format=None):
         if not format:
