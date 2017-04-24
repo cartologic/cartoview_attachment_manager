@@ -545,4 +545,4 @@ class FileResource(BaseAttachment):
             return response
         else:
             raise BadRequest("layer_name paramter not found")
-            # response = requests.post('http://localhost/api/file/?layer_name=hisham',headers=headers,files={'file':open('/home/hisham/Desktop/boundless/exchange/docker-compose-unified-search.yml', 'rb')},data={'file_name': 'docker-compose-unified-search.yml', 'is_image': False, 'app_instance':'/api/appinstances/4/'})
+# response = requests.post('http://localhost/api/file/?layer_name=hisham',headers=headers,files={'file':open('/home/hisham/Desktop/boundless/exchange/docker-compose-unified-search.yml', 'rb')},data={'file_name': 'docker-compose-unified-search.yml', 'is_image': False, 'app_instance':'/api/appinstances/4/'})

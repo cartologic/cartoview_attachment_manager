@@ -22,7 +22,8 @@ angular.module('cartoview.userAttachments').directive('cartoviewComments', funct
                 }
             };
             scope.addComment = function () {
-                scope.comment.addNew(scope.comment.newCommentText.trim());
+                console.log(attrs);
+                scope.comment.addNew(scope.comment.newCommentText.trim(),attrs.appInstance);
                 scope.comment.newCommentText = "";
             };
         }
@@ -59,7 +60,7 @@ angular.module('cartoview.userAttachments').directive('cartoviewFiles', function
                     parent: angular.element(document.body),
                     clickOutsideToClose: true
                 });
-            }
+            };
             scope.showUploadImage = function (ev) {
                 $mdDialog.show({
                     controller: DialogController,

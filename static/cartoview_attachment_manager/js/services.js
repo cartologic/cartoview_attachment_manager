@@ -1,9 +1,7 @@
 const API_URL = '/api/';
 angular.module('cartoview.userAttachments').factory('Comment', function ($resource, urls) {
     var CommentResource = $resource(API_URL + 'comment/:commentId/', {
-        layer_name: '@layeName',
-        app_instance__id: '@app_instance__id',
-        feature: '@feature'
+        layer_name: '@layeName'
     }, {
         update: {
             method: 'PUT'
@@ -18,13 +16,12 @@ angular.module('cartoview.userAttachments').factory('Comment', function ($resour
                 self.list = res;
             });
         };
-        this.addNew = function (comment) {
+        this.addNew = function (comment, app_instance_pk) {
             self.saving = true;
-            comment.app_instance = {pk: 4};
             console.log(comment);
             new CommentResource({
                 comment: comment,
-                app_instance:{pk:4}
+                app_instance: '/apps/rest/app_manager/appinstances/' + app_instance_pk + '/'
             }).$save({layer_name: layer_name}, function (newComment) {
                 self.saving = false;
                 self.loadAll();
@@ -55,12 +52,13 @@ angular.module('cartoview.userAttachments').factory('File', function ($resource,
                 self.list = res;
             });
         };
-        this.addNew = function (File) {
+        this.addNew = function (File,app_instance_pk) {
             self.saving = true;
 
-            new CommentResource({
+            new FileResource({
                 file: File,
-                layer_name: layer_name
+                layer_name: layer_name,
+                app_instance:'/apps/rest/app_manager/appinstances/' + app_instance_pk + '/'
             }).$save(function (newComment) {
                 self.saving = false;
                 self.loadAll();
