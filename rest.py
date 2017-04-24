@@ -1,15 +1,21 @@
+import mimetypes
 import django
+import six
 from avatar.templatetags.avatar_tags import avatar_url
-from cartoview.app_manager.rest import AppInstanceResource, ProfileResource, ObjectDoesNotExist
+from cartoview.app_manager.rest import AppInstanceResource, ProfileResource, ObjectDoesNotExist, url, HttpResponse
 from django.core.exceptions import MultipleObjectsReturned, ImproperlyConfigured
+from django.core.urlresolvers import reverse, NoReverseMatch
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
+from django.utils.encoding import force_text
 from tastypie.bundle import Bundle
 from tastypie.constants import ALL_WITH_RELATIONS, ALL
 from tastypie.authorization import Authorization
-from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound
+from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound, UnsupportedFormat
+from tastypie.http import HttpNotFound
 from tastypie.resources import ModelResource
 from tastypie import fields
+from tastypie.serializers import Serializer
 from .dynamic import *
 from tastypie.resources import ReverseOneToOneDescriptor
 from tastypie.utils import (
@@ -17,6 +23,47 @@ from tastypie.utils import (
     trailing_slash,
 )
 import base64
+import os
+
+
+class MultipartFormSerializer(Serializer):
+    def __init__(self, *args, **kwargs):
+        self.content_types['file_upload'] = 'multipart/form-data'
+        self.formats.append('file_upload')
+        super(MultipartFormSerializer, self).__init__(*args, **kwargs)
+
+    def from_file_upload(self, data, options=None):
+        print options
+        request = options['request']
+        deserialized = {}
+        for k in request.POST:
+            deserialized[str(k)] = str(request.POST[k])
+        for k in request.FILES:
+            deserialized[str(k)] = request.FILES[k]
+        return deserialized
+
+    # add request param to extract files
+    def deserialize(self, content, request=None, format='application/json'):
+        desired_format = None
+
+        format = format.split(';')[0]
+
+        for short_format, long_format in self.content_types.items():
+            if format == long_format:
+                if hasattr(self, "from_%s" % short_format):
+                    desired_format = short_format
+                    break
+
+        if desired_format is None:
+            raise UnsupportedFormat(
+                "The format indicated '%s' had no available deserialization method. Please check your ``formats`` and ``content_types`` on your Serializer." % format)
+
+        if isinstance(content, six.binary_type) and desired_format != 'file_upload':
+            content = force_text(content)
+
+        deserialized = getattr(self, "from_%s" % desired_format)(content, {'request': request})
+        return deserialized
+
 
 try:
     from django.contrib.gis.db.models.fields import GeometryField
@@ -28,13 +75,14 @@ class BaseAttachment(ModelResource):
     app_instance = fields.ForeignKey(AppInstanceResource, 'app_instance', null=False, blank=False)
     created_at = fields.ApiField('created_at', readonly=True)
     updated_at = fields.ApiField('updated_at', readonly=True)
-    feature = fields.ApiField('feature',default=0)
-    user=fields.DictField(readonly=True)
+    feature = fields.ApiField('feature', default=0)
+    user = fields.DictField(readonly=True)
+    user_id = fields.IntegerField(attribute='user__pk', readonly=True)
 
     class Meta:
         filtering = {"app_instance": ALL_WITH_RELATIONS,
                      "feature": ALL,
-                     "user": ALL_WITH_RELATIONS}
+                     "user_id": ALL}
         can_edit = True
         authorization = Authorization()
 
@@ -76,6 +124,7 @@ class CommentResource(BaseAttachment):
 
         else:
             raise BadRequest("layer_name paramter not Provided")
+
     def full_hydrate(self, bundle):
         """
         Given a populated bundle, distill it and turn it back into
@@ -122,13 +171,15 @@ class CommentResource(BaseAttachment):
                             except (ValueError, ObjectDoesNotExist):
                                 bundle.related_objects_to_save[field_object.attribute] = value.obj
                         elif field_object.null:
-                            if not isinstance(getattr(bundle.obj.__class__, field_object.attribute, None), ReverseOneToOneDescriptor):
+                            if not isinstance(getattr(bundle.obj.__class__, field_object.attribute, None),
+                                              ReverseOneToOneDescriptor):
                                 # only update if not a reverse one to one field
                                 setattr(bundle.obj, field_object.attribute, value)
                         elif field_object.blank:
                             continue
 
         return bundle
+
     def build_filters_custom(self, queryset, filters=None, ignore_bad_filters=False):
         """
         Given a dictionary of filters, create the necessary ORM-level filters.
@@ -259,9 +310,32 @@ class CommentResource(BaseAttachment):
 
 
 class FileResource(BaseAttachment):
+    id = fields.ApiField('pk', readonly=True)
     file = fields.ApiField('file', null=False)
-    file_name = fields.ApiField('file_name', null=False)
+    file_name = fields.ApiField('file_name', null=False, blank=True)
     is_image = fields.ApiField('is_image', default=False)
+
+    class Meta(BaseAttachment.Meta):
+        filtering = {"app_instance": ALL_WITH_RELATIONS,
+                     "feature": ALL,
+                     "is_image": ALL,
+                     "file_name": ALL}
+        can_edit = True
+        authorization = Authorization()
+        # serializer = MultipartFormSerializer()
+
+    def deserialize(self, request, data, format=None):
+        if not format:
+            format = request.Meta.get('CONTENT_TYPE', 'application/json')
+        if format == 'application/x-www-form-urlencoded':
+            return request.POST
+        if format.startswith('multipart'):
+            print request.FILES
+            data = request.POST.copy()
+            data.update(request.FILES)
+            # print "################## REQUEST DATA ###########", data
+            return data
+        return super(FileResource, self).deserialize(request, data, format)
 
     def get_object_list(self, request):
         layer_name = request.GET.get('layer_name', None)
@@ -272,8 +346,12 @@ class FileResource(BaseAttachment):
             raise BadRequest("layer_name paramter not found")
 
     def save(self, bundle, skip_errors=False):
-
-        bundle.obj.file = base64.b64decode(bundle.obj.file)
+        data = bundle.obj.file.read()
+        # print "HHHHHHHHHHH FILE HHHHHHHHHHHHHHH", data
+        bundle.obj.file = base64.b64encode(data)
+        # print "*******", bundle.obj.app_instance
+        # from geonode.people.models import Profile
+        # bundle.obj.user = Profile.objects.all()[1]
         bundle.obj.user = bundle.request.user
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name:
@@ -426,4 +504,86 @@ class FileResource(BaseAttachment):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
 
     def dehydrate_file(self, bundle):
-        return base64.b64encode(bundle.obj.file)
+        from django.conf import settings
+        url = self.get_resource_uri_custom(bundle) + "?layer_name={0}".format(bundle.request.GET.get('layer_name'))
+        return url
+
+    def get_resource_uri_custom(self, bundle_or_obj=None, url_name='api_dispatch_list'):
+        """
+        Handles generating a resource URI.
+
+        If the ``bundle_or_obj`` argument is not provided, it builds the URI
+        for the list endpoint.
+
+        If the ``bundle_or_obj`` argument is provided, it builds the URI for
+        the detail endpoint.
+
+        Return the generated URI. If that URI can not be reversed (not found
+        in the URLconf), it will return an empty string.
+        """
+        if bundle_or_obj is not None:
+            url_name = 'api_fileitem_download'
+
+        try:
+            return self._build_reverse_url(url_name, kwargs=self.resource_uri_kwargs(bundle_or_obj))
+        except NoReverseMatch:
+            return ''
+
+    def dehydrate_resource_uri(self, bundle):
+        """
+        For the automatically included ``resource_uri`` field, dehydrate
+        the URI for the given bundle.
+
+        Returns empty string if no URI can be generated.
+        """
+        try:
+            return self.get_resource_uri(bundle) + "?layer_name={0}".format(bundle.request.GET.get('layer_name'))
+        except NotImplementedError:
+            return ''
+        except NoReverseMatch:
+            return ''
+
+    def prepend_urls(self):
+        return [
+            url(r"^(?P<resource_name>%s)/download/(?P<pk>[\d]+)%s$" %
+                (self._meta.resource_name, trailing_slash()),
+                self.wrap_view('download'), name="api_fileitem_download"),
+        ]
+
+    def download(self, request, **kwargs):
+        layer_name = request.GET.get('layer_name', None)
+        if layer_name:
+            # method check to avoid bad requests
+            self.method_check(request, allowed=['get'])
+            # Must be done otherwise endpoint will be wide open
+            self.is_authenticated(request)
+            response = None
+            file_pk = kwargs.get('pk', None)
+            if file_pk:
+                model = create_file_model(layer_name)
+                try:
+                    obj = model.objects.get(pk=file_pk)
+                    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'temp')
+                    path = os.path.join(data_path, obj.file_name)
+                    if os.path.exists(path):
+                        os.remove(path)
+                    with open(path, 'wb') as f:
+                        print obj.file
+                        f.write(obj.file)
+                    type = mimetypes.MimeTypes().guess_type(obj.file_name)[0]
+                    with open(path, 'rb') as fh:
+                        response = HttpResponse(fh.read(), content_type=type)
+                        response['Content-Length'] = os.path.getsize(path)
+                        response['Content-Disposition'] = 'attachment; filename={0}'.format(obj.file_name)
+                        return response
+
+                except model.DoesNotExist:
+                    response = self.create_response(request=request, data={}, response_class=HttpNotFound)
+
+            if not response:
+                response = self.create_response(request=request, data={}, response_class=HttpNotFound)
+
+            return response
+        else:
+            raise BadRequest("layer_name paramter not found")
+            # response = requests.post('http://localhost/api/file/?layer_name=hisham',headers=headers,files={'file':open('/home/hisham/Desktop/boundless/exchange/docker-compose-unified-search.yml', 'rb')},data={'file_name': 'docker-compose-unified-search.yml', 'is_image': False, 'app_instance':'/api/appinstances/4/'})

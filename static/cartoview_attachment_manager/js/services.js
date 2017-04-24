@@ -36,8 +36,8 @@ angular.module('cartoview.userAttachments').factory('Comment', function ($resour
 });
 
 angular.module('cartoview.userAttachments').factory('File', function ($resource, urls, $http) {
-    var url = API_URL + 'File/';
-    var ImageResource = $resource(url + ':imageId', {
+    var url = API_URL + 'file/';
+    var FileResource = $resource(url + ':imageId', {
         layer_name: '@layer_name'
     }, {
         update: {

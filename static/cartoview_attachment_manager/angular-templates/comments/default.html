@@ -1,9 +1,9 @@
 <div layout="column">
     <md-list>
         <md-list-item class="md-3-line " ng-repeat="c in comment.list.objects">
-            <img ng-src="{{c.user_preview.avatar}}" class="md-avatar"/>
+            <img ng-src="{{c.user.avatar}}" class="md-avatar"/>
             <div class="md-list-item-text">
-                <h3>{{ c.user_preview.username }}</h3>
+                <h3>{{ c.user.username }}</h3>
                 <p style="white-space: pre;">{{ c.comment }}</p>
             </div>
             <md-divider></md-divider>
