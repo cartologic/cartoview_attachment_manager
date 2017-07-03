@@ -17,7 +17,10 @@ from tastypie.resources import ModelResource
 from tastypie import fields
 from tastypie.serializers import Serializer
 from .dynamic import *
-from tastypie.resources import ReverseOneToOneDescriptor
+try:
+    from django.db.models.fields.related import SingleRelatedObjectDescriptor as ReverseOneToOneDescriptor
+except ImportError:
+    from django.db.models.fields.related_descriptors import ReverseOneToOneDescriptor
 from tastypie.utils import (
     dict_strip_unicode_keys, is_valid_jsonp_callback_value, string_to_python,
     trailing_slash,
