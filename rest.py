@@ -1,22 +1,22 @@
+import json
 import mimetypes
 import django
 import six
 from avatar.templatetags.avatar_tags import avatar_url
-from cartoview.app_manager.rest import AppInstanceResource, ProfileResource, ObjectDoesNotExist, url, HttpResponse
+from cartoview.app_manager.rest import AppInstanceResource, ObjectDoesNotExist, url, HttpResponse
 from django.core.exceptions import MultipleObjectsReturned, ImproperlyConfigured
 from django.core.urlresolvers import reverse, NoReverseMatch
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
-from django.utils.encoding import force_text
 from tastypie.bundle import Bundle
 from tastypie.constants import ALL_WITH_RELATIONS, ALL
 from tastypie.authorization import Authorization
-from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound, UnsupportedFormat
+from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound
 from tastypie.http import HttpNotFound
 from tastypie.resources import ModelResource
 from tastypie import fields
-from tastypie.serializers import Serializer
 from .dynamic import *
+
 try:
     from django.db.models.fields.related import SingleRelatedObjectDescriptor as ReverseOneToOneDescriptor
 except ImportError:
@@ -270,7 +270,8 @@ class CommentResource(BaseAttachment):
 
     def dehydrate_user(self, bundle):
         return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
-
+    def get_schema(self, request, **kwargs):
+        return HttpResponse(json.dumps({'message':'No Schema!!'}),content_type="application/json")
 
 class FileResource(BaseAttachment):
     id = fields.ApiField('pk', readonly=True)
@@ -548,4 +549,7 @@ class FileResource(BaseAttachment):
             return response
         else:
             raise BadRequest("layer_name paramter not found")
-# response = requests.post('http://localhost/api/file/?layer_name=hisham',headers=headers,files={'file':open('/home/hisham/Desktop/boundless/exchange/docker-compose-unified-search.yml', 'rb')},data={'file_name': 'docker-compose-unified-search.yml', 'is_image': False, 'app_instance':'/api/appinstances/4/'})
+
+    def get_schema(self, request, **kwargs):
+        return HttpResponse(json.dumps({'message':'No Schema!!'}),content_type="application/json")
+
