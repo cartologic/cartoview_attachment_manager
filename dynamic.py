@@ -6,8 +6,6 @@ from uuid import uuid4
 from django.db import models
 
 
-
-
 def create_comment_table(layer_name, db='default'):
     COMMENT_TABLE = """\
     CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_comment_{0}_id_seq
@@ -52,7 +50,8 @@ def create_comment_table(layer_name, db='default'):
       USING btree
       (user_id);
 
-    """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
+    """.format(layer_name, str(uuid4()).replace('-', ""),
+               str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
     with connection.cursor() as cursor:
         cursor.execute(COMMENT_TABLE)
 
@@ -105,7 +104,8 @@ def create_file_table(layer_name, db='default'):
       USING btree
       (user_id);
 
-    """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
+    """.format(layer_name, str(uuid4()).replace('-', ""),
+               str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
     with connection.cursor() as cursor:
         cursor.execute(FILE_TABLE)
 
@@ -154,12 +154,14 @@ def create_rating_table(layer_name, db='default'):
       ON public.attachment_manager_rating_{0}
       USING btree
       (user_id);
-    """.format(layer_name, str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
+    """.format(layer_name, str(uuid4()).replace('-', ""),
+               str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
     with connection.cursor() as cursor:
         cursor.execute(RATING_TABLE)
 
 
-# TODO Add database option to Models take alook https://docs.djangoproject.com/en/1.10/topics/db/multi-db/
+# TODO Add database option to Models take alook
+# https://docs.djangoproject.com/en/1.10/topics/db/multi-db/
 UserModel = settings.AUTH_USER_MODEL
 
 _comments_models_cache = {}
@@ -170,7 +172,11 @@ class BaseAttachmentModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     user = models.ForeignKey(UserModel, related_name="attachment_%(class)s")
-    app_instance = models.ForeignKey(AppInstance, related_name="attachment_%(class)s", blank=True, null=True)
+    app_instance = models.ForeignKey(
+        AppInstance,
+        related_name="attachment_%(class)s",
+        blank=True,
+        null=True)
     feature = models.PositiveIntegerField(blank=True, null=True)
 
     class Meta:
@@ -260,22 +266,30 @@ def create_rating_model(layer_name):
 
 def test():
     from geonode.people.models import Profile
-    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_data')
+    data_path = os.path.join(
+        os.path.dirname(
+            os.path.realpath(__file__)),
+        'test_data')
     file_path = os.path.join(data_path, 'image.png')
     with open(file_path) as f:
         file = f.read()
     model = create_file_model('hisham')
-    model.objects.create(file=file, file_name=os.path.basename(file_path), is_image=True, user=Profile.objects.all()[0])
+    model.objects.create(file=file, file_name=os.path.basename(
+        file_path), is_image=True, user=Profile.objects.all()[0])
 
 
 def test_read():
     # from PIL import Image
     # import io
-    # model = create_file_model('File', 'hisham', app_label='fake_app', module='fake_project.fake_app.no_models')
+    # model = create_file_model('File', 'hisham', app_label='fake_app',
+    #                        module='fake_project.fake_app.no_models')
     # image_data = model.objects.all()[0].file
     # image = Image.open(io.BytesIO(image_data))
     # image.show()
-    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_data')
+    data_path = os.path.join(
+        os.path.dirname(
+            os.path.realpath(__file__)),
+        'test_data')
     model = create_file_model('hisham')
     obj = model.objects.all().last()
     with open(os.path.join(data_path, 'output_' + obj.file_name), 'wb') as f:
@@ -284,7 +298,8 @@ def test_read():
 
 # Note Works Only with Postgres 9.4 or heigher
 def check_table_exists(table_name, schema='public'):
-    """this function check if table exists in the database or not Return True or Flase"""
+    """this function check if table exists in the database or not Return True
+     or Flase"""
     with connection.cursor() as cursor:
         cursor.execute("""\
            SELECT EXISTS (

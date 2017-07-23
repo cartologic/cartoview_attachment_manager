@@ -12,8 +12,8 @@ class FileTest(TestCase):
         with open(file_path) as f:
             file = f.read()
         model = create_file_model('hisham')
-        model.objects.create(file=file, file_name=os.path.basename(file_path), is_image=True,
-                             user=Profile.objects.all()[0])
+        model.objects.create(file=file, file_name=os.path.basename(
+            file_path), is_image=True, user=Profile.objects.all()[0])
 
     def test_object_created(self):
         """Animals that can speak are correctly identified"""
@@ -23,4 +23,10 @@ class FileTest(TestCase):
         with open(os.path.join(data_path, 'output_' + obj.file_name), 'w+') as f:
             f.write(obj.file)
 
-        self.assertEqual(os.path.exists(os.path.join(data_path, 'output_' + obj.file_name), True))
+        self.assertEqual(
+            os.path.exists(
+                os.path.join(
+                    data_path,
+                    'output_' +
+                    obj.file_name),
+                True))

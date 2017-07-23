@@ -1,11 +1,12 @@
 import json
 import mimetypes
 import django
-import six
 from avatar.templatetags.avatar_tags import avatar_url
-from cartoview.app_manager.rest import AppInstanceResource, ObjectDoesNotExist, url, HttpResponse
-from django.core.exceptions import MultipleObjectsReturned, ImproperlyConfigured
-from django.core.urlresolvers import reverse, NoReverseMatch
+from cartoview.app_manager.rest import AppInstanceResource, \
+    ObjectDoesNotExist, url, HttpResponse
+from django.core.exceptions import MultipleObjectsReturned, \
+    ImproperlyConfigured
+from django.core.urlresolvers import NoReverseMatch
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from tastypie.bundle import Bundle
@@ -15,14 +16,17 @@ from tastypie.exceptions import BadRequest, InvalidFilterError, NotFound
 from tastypie.http import HttpNotFound
 from tastypie.resources import ModelResource
 from tastypie import fields
-from .dynamic import *
-
+from .dynamic import create_comment_model, create_file_model
+from django.db.models import Q
+from geonode.layers.models import Layer
 try:
-    from django.db.models.fields.related import SingleRelatedObjectDescriptor as ReverseOneToOneDescriptor
+    from django.db.models.fields.related import SingleRelatedObjectDescriptor\
+        as ReverseOneToOneDescriptor
 except ImportError:
-    from django.db.models.fields.related_descriptors import ReverseOneToOneDescriptor
+    from django.db.models.fields.related_descriptors \
+        import ReverseOneToOneDescriptor
 from tastypie.utils import (
-    dict_strip_unicode_keys, is_valid_jsonp_callback_value, string_to_python,
+    dict_strip_unicode_keys,
     trailing_slash,
 )
 import base64
@@ -34,8 +38,18 @@ except (ImproperlyConfigured, ImportError):
     GeometryField = None
 
 
+def layer_exist(layer_name):
+    result = Layer.objects.filter(Q(name=layer_name)
+                                  | Q(typename=layer_name))
+    return True if result.count() else False
+
+
 class BaseAttachment(ModelResource):
-    app_instance = fields.ForeignKey(AppInstanceResource, 'app_instance', null=False, blank=False)
+    app_instance = fields.ForeignKey(
+        AppInstanceResource,
+        'app_instance',
+        null=False,
+        blank=False)
     created_at = fields.ApiField('created_at', readonly=True)
     updated_at = fields.ApiField('updated_at', readonly=True)
     feature = fields.ApiField('feature', default=0)
@@ -55,27 +69,31 @@ class CommentResource(BaseAttachment):
 
     def get_object_list(self, request):
         layer_name = request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_comment_model(layer_name)
             return model.objects.all()
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def save(self, bundle, skip_errors=False):
         from geonode.people.models import Profile
         # bundle.obj.user = bundle.request.user
         bundle.obj.user = Profile.objects.all()[1]
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             print bundle.obj.app_instance
             return super(CommentResource, self).save(bundle, skip_errors)
+        else:
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def obj_create(self, bundle, **kwargs):
         """
         A ORM-specific implementation of ``obj_create``.
         """
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_comment_model(layer_name)
             bundle.obj = model()
 
@@ -86,7 +104,8 @@ class CommentResource(BaseAttachment):
             return self.save(bundle)
 
         else:
-            raise BadRequest("layer_name paramter not Provided")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def full_hydrate(self, bundle):
         """
@@ -94,11 +113,12 @@ class CommentResource(BaseAttachment):
         a full-fledged object instance.
         """
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_comment_model(layer_name)
             bundle.obj = model()
         else:
-            raise BadRequest("layer_name paramter not Provided")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
         bundle = self.hydrate(bundle)
 
@@ -126,24 +146,32 @@ class CommentResource(BaseAttachment):
                         setattr(bundle.obj, field_object.attribute, value)
                     elif not field_object.is_m2m:
                         if value is not None:
-                            # NOTE: A bug fix in Django (ticket #18153) fixes incorrect behavior
-                            # which Tastypie was relying on.  To fix this, we store value.obj to
-                            # be saved later in save_related.
                             try:
-                                setattr(bundle.obj, field_object.attribute, value.obj)
+                                setattr(
+                                    bundle.obj, field_object.attribute,
+                                    value.obj)
                             except (ValueError, ObjectDoesNotExist):
                                 bundle.related_objects_to_save[field_object.attribute] = value.obj
                         elif field_object.null:
-                            if not isinstance(getattr(bundle.obj.__class__, field_object.attribute, None),
-                                              ReverseOneToOneDescriptor):
+                            if not isinstance(
+                                    getattr(
+                                        bundle.obj.__class__,
+                                        field_object.attribute,
+                                        None),
+                                    ReverseOneToOneDescriptor):
                                 # only update if not a reverse one to one field
-                                setattr(bundle.obj, field_object.attribute, value)
+                                setattr(
+                                    bundle.obj, field_object.attribute, value)
                         elif field_object.blank:
                             continue
 
         return bundle
 
-    def build_filters_custom(self, queryset, filters=None, ignore_bad_filters=False):
+    def build_filters_custom(
+            self,
+            queryset,
+            filters=None,
+            ignore_bad_filters=False):
         """
         Given a dictionary of filters, create the necessary ORM-level filters.
 
@@ -153,15 +181,6 @@ class CommentResource(BaseAttachment):
         ``['startswith', 'exact', 'lte']``), the ``ALL`` constant or the
         ``ALL_WITH_RELATIONS`` constant.
         """
-        # At the declarative level:
-        #     filtering = {
-        #         'resource_field_name': ['exact', 'startswith', 'endswith', 'contains'],
-        #         'resource_field_name_2': ['exact', 'gt', 'gte', 'lt', 'lte', 'range'],
-        #         'resource_field_name_3': ALL,
-        #         'resource_field_name_4': ALL_WITH_RELATIONS,
-        #         ...
-        #     }
-        # Accepts the filters as a dict. None by default, meaning no filters.
         if filters is None:
             filters = {}
 
@@ -188,13 +207,15 @@ class CommentResource(BaseAttachment):
                 filter_type = filter_bits.pop()
 
             try:
-                lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
+                lookup_bits = self.check_filtering(
+                    field_name, filter_type, filter_bits)
             except InvalidFilterError:
                 if ignore_bad_filters:
                     continue
                 else:
                     raise
-            value = self.filter_value_to_python(value, field_name, filters, filter_expr, filter_type)
+            value = self.filter_value_to_python(
+                value, field_name, filters, filter_expr, filter_type)
 
             db_field_name = LOOKUP_SEP.join(lookup_bits)
             qs_filter = "%s%s%s" % (db_field_name, LOOKUP_SEP, filter_type)
@@ -209,7 +230,7 @@ class CommentResource(BaseAttachment):
         ``GET`` dictionary of bundle.request can be used to narrow the query.
         """
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_comment_model(layer_name)
             filters = {}
 
@@ -219,15 +240,19 @@ class CommentResource(BaseAttachment):
 
             # Update with the provided kwargs.
             filters.update(kwargs)
-            applicable_filters = self.build_filters_custom(queryset=model.objects.all(), filters=filters)
+            applicable_filters = self.build_filters_custom(
+                queryset=model.objects.all(), filters=filters)
 
             try:
-                objects = self.apply_filters(bundle.request, applicable_filters)
+                objects = self.apply_filters(
+                    bundle.request, applicable_filters)
                 return self.authorized_read_list(objects, bundle)
             except ValueError:
-                raise BadRequest("Invalid resource lookup data provided (mismatched type).")
+                raise BadRequest(
+                    "Invalid resource lookup data provided (mismatched type).")
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def obj_get(self, bundle, **kwargs):
         """
@@ -241,37 +266,52 @@ class CommentResource(BaseAttachment):
         # or data from a related field, so we don't want to raise errors if
         # something doesn't explicitly match a configured filter.
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_comment_model(layer_name)
-            applicable_filters = self.build_filters_custom(queryset=model.objects.all(), filters=kwargs,
-                                                           ignore_bad_filters=True)
+            applicable_filters = self.build_filters_custom(
+                queryset=model.objects.all(), filters=kwargs,
+                ignore_bad_filters=True)
             if self._meta.detail_uri_name in kwargs:
-                applicable_filters[self._meta.detail_uri_name] = kwargs[self._meta.detail_uri_name]
+                applicable_filters[self._meta.detail_uri_name] = \
+                    kwargs[self._meta.detail_uri_name]
 
             try:
-                object_list = self.apply_filters(bundle.request, applicable_filters)
-                stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in applicable_filters.items()])
+                object_list = self.apply_filters(
+                    bundle.request, applicable_filters)
+                stringified_kwargs = ', '.join(
+                    ["%s=%s" % (k, v) for k, v in applicable_filters.items()])
 
                 if len(object_list) <= 0:
                     raise self._meta.object_class.DoesNotExist(
-                        "Couldn't find an instance of '%s' which matched '%s'." % (
-                            self._meta.object_class.__name__, stringified_kwargs))
+                        "Couldn't find an instance of '%s' which matched '%s'."
+                        %
+                        (self._meta.object_class.__name__, stringified_kwargs))
                 elif len(object_list) > 1:
                     raise MultipleObjectsReturned(
-                        "More than '%s' matched '%s'." % (model.__name__, stringified_kwargs))
+                        "More than '%s' matched '%s'." %
+                        (model.__name__, stringified_kwargs))
 
                 bundle.obj = object_list[0]
                 self.authorized_read_detail(object_list, bundle)
                 return bundle.obj
             except ValueError:
-                raise NotFound("Invalid resource lookup data provided (mismatched type).")
+                raise NotFound(
+                    "Invalid resource lookup data provided (mismatched type).")
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def dehydrate_user(self, bundle):
-        return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
+        return dict(
+            username=bundle.obj.user.username,
+            avatar=avatar_url(
+                bundle.obj.user,
+                60))
+
     def get_schema(self, request, **kwargs):
-        return HttpResponse(json.dumps({'message':'No Schema!!'}),content_type="application/json")
+        return HttpResponse(json.dumps(
+            {'message': 'No Schema!!'}), content_type="application/json")
+
 
 class FileResource(BaseAttachment):
     id = fields.ApiField('pk', readonly=True)
@@ -302,11 +342,12 @@ class FileResource(BaseAttachment):
 
     def get_object_list(self, request):
         layer_name = request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_file_model(layer_name)
             return model.objects.all()
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def save(self, bundle, skip_errors=False):
         data = bundle.obj.file.read()
@@ -317,15 +358,18 @@ class FileResource(BaseAttachment):
         # bundle.obj.user = Profile.objects.all()[1]
         bundle.obj.user = bundle.request.user
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             return super(FileResource, self).save(bundle, skip_errors)
+        else:
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def obj_create(self, bundle, **kwargs):
         """
         A ORM-specific implementation of ``obj_create``.
         """
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_file_model(layer_name)
             bundle.obj = model()
 
@@ -336,9 +380,14 @@ class FileResource(BaseAttachment):
             return self.save(bundle)
 
         else:
-            raise BadRequest("layer_name paramter not Provided")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
-    def build_filters_custom(self, queryset, filters=None, ignore_bad_filters=False):
+    def build_filters_custom(
+            self,
+            queryset,
+            filters=None,
+            ignore_bad_filters=False):
         """
         Given a dictionary of filters, create the necessary ORM-level filters.
 
@@ -348,15 +397,6 @@ class FileResource(BaseAttachment):
         ``['startswith', 'exact', 'lte']``), the ``ALL`` constant or the
         ``ALL_WITH_RELATIONS`` constant.
         """
-        # At the declarative level:
-        #     filtering = {
-        #         'resource_field_name': ['exact', 'startswith', 'endswith', 'contains'],
-        #         'resource_field_name_2': ['exact', 'gt', 'gte', 'lt', 'lte', 'range'],
-        #         'resource_field_name_3': ALL,
-        #         'resource_field_name_4': ALL_WITH_RELATIONS,
-        #         ...
-        #     }
-        # Accepts the filters as a dict. None by default, meaning no filters.
         if filters is None:
             filters = {}
 
@@ -383,13 +423,15 @@ class FileResource(BaseAttachment):
                 filter_type = filter_bits.pop()
 
             try:
-                lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
+                lookup_bits = self.check_filtering(
+                    field_name, filter_type, filter_bits)
             except InvalidFilterError:
                 if ignore_bad_filters:
                     continue
                 else:
                     raise
-            value = self.filter_value_to_python(value, field_name, filters, filter_expr, filter_type)
+            value = self.filter_value_to_python(
+                value, field_name, filters, filter_expr, filter_type)
 
             db_field_name = LOOKUP_SEP.join(lookup_bits)
             qs_filter = "%s%s%s" % (db_field_name, LOOKUP_SEP, filter_type)
@@ -404,7 +446,7 @@ class FileResource(BaseAttachment):
         ``GET`` dictionary of bundle.request can be used to narrow the query.
         """
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_file_model(layer_name)
             filters = {}
 
@@ -414,15 +456,19 @@ class FileResource(BaseAttachment):
 
             # Update with the provided kwargs.
             filters.update(kwargs)
-            applicable_filters = self.build_filters_custom(queryset=model.objects.all(), filters=filters)
+            applicable_filters = self.build_filters_custom(
+                queryset=model.objects.all(), filters=filters)
 
             try:
-                objects = self.apply_filters(bundle.request, applicable_filters)
+                objects = self.apply_filters(
+                    bundle.request, applicable_filters)
                 return self.authorized_read_list(objects, bundle)
             except ValueError:
-                raise BadRequest("Invalid resource lookup data provided (mismatched type).")
+                raise BadRequest(
+                    "Invalid resource lookup data provided (mismatched type).")
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def obj_get(self, bundle, **kwargs):
         """
@@ -436,42 +482,58 @@ class FileResource(BaseAttachment):
         # or data from a related field, so we don't want to raise errors if
         # something doesn't explicitly match a configured filter.
         layer_name = bundle.request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             model = create_file_model(layer_name)
-            applicable_filters = self.build_filters_custom(queryset=model.objects.all(), filters=kwargs,
-                                                           ignore_bad_filters=True)
+            applicable_filters = self.build_filters_custom(
+                queryset=model.objects.all(), filters=kwargs,
+                ignore_bad_filters=True)
             if self._meta.detail_uri_name in kwargs:
-                applicable_filters[self._meta.detail_uri_name] = kwargs[self._meta.detail_uri_name]
+                applicable_filters[self._meta.detail_uri_name] = \
+                    kwargs[self._meta.detail_uri_name]
 
             try:
-                object_list = self.apply_filters(bundle.request, applicable_filters)
-                stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in applicable_filters.items()])
+                object_list = self.apply_filters(
+                    bundle.request, applicable_filters)
+                stringified_kwargs = ', '.join(
+                    ["%s=%s" % (k, v) for k, v in applicable_filters.items()])
 
                 if len(object_list) <= 0:
                     raise self._meta.object_class.DoesNotExist(
-                        "Couldn't find an instance of '%s' which matched '%s'." % (
-                            self._meta.object_class.__name__, stringified_kwargs))
+                        "Couldn't find an instance of '%s' which matched '%s'."
+                        %
+                        (self._meta.object_class.__name__, stringified_kwargs))
                 elif len(object_list) > 1:
                     raise MultipleObjectsReturned(
-                        "More than '%s' matched '%s'." % (model.__name__, stringified_kwargs))
+                        "More than '%s' matched '%s'." %
+                        (model.__name__, stringified_kwargs))
 
                 bundle.obj = object_list[0]
                 self.authorized_read_detail(object_list, bundle)
                 return bundle.obj
             except ValueError:
-                raise NotFound("Invalid resource lookup data provided (mismatched type).")
+                raise NotFound(
+                    "Invalid resource lookup data provided (mismatched type).")
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def dehydrate_user(self, bundle):
-        return dict(username=bundle.obj.user.username, avatar=avatar_url(bundle.obj.user, 60))
+        return dict(
+            username=bundle.obj.user.username,
+            avatar=avatar_url(
+                bundle.obj.user,
+                60))
 
     def dehydrate_file(self, bundle):
-        from django.conf import settings
-        url = self.get_resource_uri_custom(bundle) + "?layer_name={0}".format(bundle.request.GET.get('layer_name'))
+        url = self.get_resource_uri_custom(
+            bundle) + "?layer_name={0}".format(
+            bundle.request.GET.get('layer_name'))
         return url
 
-    def get_resource_uri_custom(self, bundle_or_obj=None, url_name='api_dispatch_list'):
+    def get_resource_uri_custom(
+            self,
+            bundle_or_obj=None,
+            url_name='api_dispatch_list'):
         """
         Handles generating a resource URI.
 
@@ -488,7 +550,8 @@ class FileResource(BaseAttachment):
             url_name = 'api_fileitem_download'
 
         try:
-            return self._build_reverse_url(url_name, kwargs=self.resource_uri_kwargs(bundle_or_obj))
+            return self._build_reverse_url(
+                url_name, kwargs=self.resource_uri_kwargs(bundle_or_obj))
         except NoReverseMatch:
             return ''
 
@@ -500,7 +563,9 @@ class FileResource(BaseAttachment):
         Returns empty string if no URI can be generated.
         """
         try:
-            return self.get_resource_uri(bundle) + "?layer_name={0}".format(bundle.request.GET.get('layer_name'))
+            return self.get_resource_uri(
+                bundle) + "?layer_name={0}".format(
+                bundle.request.GET.get('layer_name'))
         except NotImplementedError:
             return ''
         except NoReverseMatch:
@@ -515,7 +580,7 @@ class FileResource(BaseAttachment):
 
     def download(self, request, **kwargs):
         layer_name = request.GET.get('layer_name', None)
-        if layer_name:
+        if layer_name and layer_exist(layer_name):
             # method check to avoid bad requests
             self.method_check(request, allowed=['get'])
             # Must be done otherwise endpoint will be wide open
@@ -526,7 +591,8 @@ class FileResource(BaseAttachment):
                 model = create_file_model(layer_name)
                 try:
                     obj = model.objects.get(pk=file_pk)
-                    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'temp')
+                    data_path = os.path.join(os.path.dirname(
+                        os.path.realpath(__file__)), 'temp')
                     path = os.path.join(data_path, obj.file_name)
                     if os.path.exists(path):
                         os.remove(path)
@@ -537,19 +603,23 @@ class FileResource(BaseAttachment):
                     with open(path, 'rb') as fh:
                         response = HttpResponse(fh.read(), content_type=type)
                         response['Content-Length'] = os.path.getsize(path)
-                        response['Content-Disposition'] = 'attachment; filename={0}'.format(obj.file_name)
+                        response['Content-Disposition'] = \
+                            'attachment; filename={0}'.format(obj.file_name)
                         return response
 
                 except model.DoesNotExist:
-                    response = self.create_response(request=request, data={}, response_class=HttpNotFound)
+                    response = self.create_response(
+                        request=request, data={}, response_class=HttpNotFound)
 
             if not response:
-                response = self.create_response(request=request, data={}, response_class=HttpNotFound)
+                response = self.create_response(
+                    request=request, data={}, response_class=HttpNotFound)
 
             return response
         else:
-            raise BadRequest("layer_name paramter not found")
+            raise BadRequest("layer_name paramter not found or Layer" +
+                             "DoesNotExist")
 
     def get_schema(self, request, **kwargs):
-        return HttpResponse(json.dumps({'message':'No Schema!!'}),content_type="application/json")
-
+        return HttpResponse(json.dumps(
+            {'message': 'No Schema!!'}), content_type="application/json")
