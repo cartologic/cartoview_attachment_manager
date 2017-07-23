@@ -19,6 +19,8 @@ from tastypie import fields
 from .dynamic import create_comment_model, create_file_model
 from django.db.models import Q
 from geonode.layers.models import Layer
+from django.http import Http404
+
 try:
     from django.db.models.fields.related import SingleRelatedObjectDescriptor\
         as ReverseOneToOneDescriptor
@@ -41,7 +43,19 @@ except (ImproperlyConfigured, ImportError):
 def layer_exist(layer_name):
     result = Layer.objects.filter(Q(name=layer_name)
                                   | Q(typename=layer_name))
-    return True if result.count() else False
+    return True if result.count() > 0 else False
+
+
+def replace_typename(layer_name):
+    result = Layer.objects.filter(Q(name=layer_name)
+                                  | Q(typename=layer_name))
+    layer_obj = result.first() if result.count() > 0 else None
+    if layer_obj:
+        if layer_obj.typename == layer_name:
+            return layer_obj.name
+    else:
+        raise Http404("Layer Not Found")
+    return layer_name
 
 
 class BaseAttachment(ModelResource):
@@ -70,6 +84,7 @@ class CommentResource(BaseAttachment):
     def get_object_list(self, request):
         layer_name = request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_comment_model(layer_name)
             return model.objects.all()
         else:
@@ -94,6 +109,7 @@ class CommentResource(BaseAttachment):
         """
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_comment_model(layer_name)
             bundle.obj = model()
 
@@ -114,6 +130,7 @@ class CommentResource(BaseAttachment):
         """
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_comment_model(layer_name)
             bundle.obj = model()
         else:
@@ -231,6 +248,7 @@ class CommentResource(BaseAttachment):
         """
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_comment_model(layer_name)
             filters = {}
 
@@ -267,6 +285,7 @@ class CommentResource(BaseAttachment):
         # something doesn't explicitly match a configured filter.
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_comment_model(layer_name)
             applicable_filters = self.build_filters_custom(
                 queryset=model.objects.all(), filters=kwargs,
@@ -343,6 +362,7 @@ class FileResource(BaseAttachment):
     def get_object_list(self, request):
         layer_name = request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_file_model(layer_name)
             return model.objects.all()
         else:
@@ -370,6 +390,7 @@ class FileResource(BaseAttachment):
         """
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_file_model(layer_name)
             bundle.obj = model()
 
@@ -447,6 +468,7 @@ class FileResource(BaseAttachment):
         """
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_file_model(layer_name)
             filters = {}
 
@@ -483,6 +505,7 @@ class FileResource(BaseAttachment):
         # something doesn't explicitly match a configured filter.
         layer_name = bundle.request.GET.get('layer_name', None)
         if layer_name and layer_exist(layer_name):
+            layer_name = replace_typename(layer_name)
             model = create_file_model(layer_name)
             applicable_filters = self.build_filters_custom(
                 queryset=model.objects.all(), filters=kwargs,
@@ -525,9 +548,11 @@ class FileResource(BaseAttachment):
                 60))
 
     def dehydrate_file(self, bundle):
+        layer_name = bundle.request.GET.get('layer_name')
+        layer_name = replace_typename(layer_name)
         url = self.get_resource_uri_custom(
             bundle) + "?layer_name={0}".format(
-            bundle.request.GET.get('layer_name'))
+            )
         return url
 
     def get_resource_uri_custom(
@@ -563,9 +588,10 @@ class FileResource(BaseAttachment):
         Returns empty string if no URI can be generated.
         """
         try:
+            layer_name = bundle.request.GET.get('layer_name')
+            layer_name = replace_typename(layer_name)
             return self.get_resource_uri(
-                bundle) + "?layer_name={0}".format(
-                bundle.request.GET.get('layer_name'))
+                bundle) + "?layer_name={0}".format(layer_name)
         except NotImplementedError:
             return ''
         except NoReverseMatch:
@@ -588,6 +614,7 @@ class FileResource(BaseAttachment):
             response = None
             file_pk = kwargs.get('pk', None)
             if file_pk:
+                layer_name = replace_typename(layer_name)
                 model = create_file_model(layer_name)
                 try:
                     obj = model.objects.get(pk=file_pk)
