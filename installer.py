@@ -9,7 +9,7 @@ info = {
     "tags": ['attachment', ],
     "licence": 'BSD',
     "author_website": "http://www.cartologic.com",
-    "single_instance": False
+    "single_instance": True
 }
 
 
