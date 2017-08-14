@@ -1,312 +1,100 @@
-import os
-from cartoview.app_manager.models import AppInstance
-from django.conf import settings
-from django.db import connection
-from uuid import uuid4
-from django.db import models
+import datetime
+from peewee import PostgresqlDatabase, Model, CharField, DateTimeField,\
+    IntegerField, fn
+from playhouse.shortcuts import model_to_dict
+import json
+# Replace static paramter with django database Paramters
+db = PostgresqlDatabase('cartoview_datastore',
+                        user='postgres', password="clogic", host="localhost",
+                        autocommit=True, autorollback=True)
+db.connect()
+_attachment_comment_models_cache = {}
 
 
-def create_comment_table(layer_name, db='default'):
-    COMMENT_TABLE = """\
-    CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_comment_{0}_id_seq
-      INCREMENT 1
-      MINVALUE 1
-      MAXVALUE 9223372036854775807
-      START 1
-      CACHE 1;
-    ALTER TABLE public.attachment_manager_comment_{0}_id_seq
-      OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS public.attachment_manager_comment_{0}
-    (
-      id integer NOT NULL DEFAULT nextval('attachment_manager_comment_{0}_id_seq'::regclass),
-      created_at timestamp with time zone NOT NULL,
-      updated_at timestamp with time zone NOT NULL,
-      feature integer,
-      comment text NOT NULL,
-      app_instance_id integer,
-      user_id integer NOT NULL,
-      CONSTRAINT attachment_manager_comment_{0}_{1}_pkey PRIMARY KEY (id),
-      CONSTRAINT "{1}" FOREIGN KEY (app_instance_id)
-          REFERENCES public.app_manager_appinstance (resourcebase_ptr_id) MATCH SIMPLE
-          ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
-      CONSTRAINT attachment_manage_user_id_{0}_{1}_fk_people_profile_id FOREIGN KEY (user_id)
-          REFERENCES public.people_profile (id) MATCH SIMPLE
-          ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
-      CONSTRAINT attachment_manager_comment_{0}_{1}_feature_check CHECK (feature >= 0)
-    )
-    WITH (
-      OIDS=FALSE
-    );
-    ALTER TABLE public.attachment_manager_comment_{0}
-      OWNER TO postgres;
+class BaseDateTime(Model):
+    created = DateTimeField(default=datetime.datetime.now)
+    modified = DateTimeField()
 
-    CREATE INDEX IF NOT EXISTS attachment_manager_comment_{0}_{2}
-      ON public.attachment_manager_comment_{0}
-      USING btree
-      (app_instance_id);
+    def save(self, *args, **kwargs):
+        self.modified = datetime.datetime.now()
+        return super(BaseDateTime, self).save(*args, **kwargs)
 
-    CREATE INDEX IF NOT EXISTS attachment_manager_comment_{0}_{3}
-      ON public.attachment_manager_comment_{0}
-      USING btree
-      (user_id);
-
-    """.format(layer_name, str(uuid4()).replace('-', ""),
-               str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection.cursor() as cursor:
-        cursor.execute(COMMENT_TABLE)
-
-
-def create_file_table(layer_name, db='default'):
-    FILE_TABLE = """\
-    CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_file_{0}_id_seq
-          INCREMENT 1
-          MINVALUE 1
-          MAXVALUE 9223372036854775807
-          START 1
-          CACHE 1;
-    ALTER TABLE public.attachment_manager_file_{0}_id_seq
-      OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS public.attachment_manager_file_{0}
-    (
-      id integer NOT NULL DEFAULT nextval('attachment_manager_file_{0}_id_seq'::regclass),
-      created_at timestamp with time zone NOT NULL,
-      updated_at timestamp with time zone NOT NULL,
-      feature integer,
-      file bytea NOT NULL,
-      file_name character varying(150) NOT NULL,
-      is_image boolean NOT NULL,
-      app_instance_id integer,
-      user_id integer NOT NULL,
-      CONSTRAINT attachment_manager_file_{0}_{1}_pkey PRIMARY KEY (id),
-      CONSTRAINT "{1}" FOREIGN KEY (app_instance_id)
-          REFERENCES public.app_manager_appinstance (resourcebase_ptr_id) MATCH SIMPLE
-          ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
-      CONSTRAINT attachment_manager_user_id_{0}_{1}_fk_people_profile_id FOREIGN KEY (user_id)
-          REFERENCES public.people_profile (id) MATCH SIMPLE
-          ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
-      CONSTRAINT attachment_manager_file_{0}_{1}_feature_check CHECK (feature >= 0)
-    )
-    WITH (
-      OIDS=FALSE
-    );
-    ALTER TABLE public.attachment_manager_file_{0}
-      OWNER TO postgres;
-
-
-    CREATE INDEX IF NOT EXISTS attachment_manager_file_{0}_{2}
-      ON public.attachment_manager_file_{0}
-      USING btree
-      (app_instance_id);
-
-
-    CREATE INDEX IF NOT EXISTS attachment_manager_file_{0}_{3}
-      ON public.attachment_manager_file_{0}
-      USING btree
-      (user_id);
-
-    """.format(layer_name, str(uuid4()).replace('-', ""),
-               str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection.cursor() as cursor:
-        cursor.execute(FILE_TABLE)
-
-
-def create_rating_table(layer_name, db='default'):
-    RATING_TABLE = """\
-    CREATE SEQUENCE IF NOT EXISTS public.attachment_manager_rating_{0}_id_seq
-          INCREMENT 1
-          MINVALUE 1
-          MAXVALUE 9223372036854775807
-          START 1
-          CACHE 1;
-    ALTER TABLE public.attachment_manager_file_{0}_id_seq
-      OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS public.attachment_manager_rating_{0}
-    (
-      id integer NOT NULL DEFAULT nextval('attachment_manager_rating_{0}_id_seq'::regclass),
-      created_at timestamp with time zone NOT NULL,
-      updated_at timestamp with time zone NOT NULL,
-      feature integer,
-      rate smallint NOT NULL,
-      app_instance_id integer,
-      user_id integer NOT NULL,
-      CONSTRAINT attachment_manager_rating_{0}_{1}_pkey PRIMARY KEY (id),
-      CONSTRAINT attachment_manage_user_id_{0}_{1}_fk_people_profile_id FOREIGN KEY (user_id)
-          REFERENCES public.people_profile (id) MATCH SIMPLE
-          ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
-      CONSTRAINT {1} FOREIGN KEY (app_instance_id)
-          REFERENCES public.app_manager_appinstance (resourcebase_ptr_id) MATCH SIMPLE
-          ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
-      CONSTRAINT attachment_manager_rating_{0}_{1}_feature_check CHECK (feature >= 0),
-      CONSTRAINT attachment_manager_rating_{0}_{1}_rate_check CHECK (rate >= 0)
-    )
-    WITH (
-      OIDS=FALSE
-    );
-    ALTER TABLE public.attachment_manager_rating_{0}
-      OWNER TO postgres;
-
-    CREATE INDEX IF NOT EXISTS attachment_manager_rating_{0}_{2}
-      ON public.attachment_manager_rating_{0}
-      USING btree
-      (app_instance_id);
-
-    CREATE INDEX IF NOT EXISTS attachment_manager_rating_{0}_{3}
-      ON public.attachment_manager_rating_{0}
-      USING btree
-      (user_id);
-    """.format(layer_name, str(uuid4()).replace('-', ""),
-               str(uuid4()).replace('-', ""), str(uuid4()).replace('-', ""))
-    with connection.cursor() as cursor:
-        cursor.execute(RATING_TABLE)
-
-
-# TODO Add database option to Models take alook
-# https://docs.djangoproject.com/en/1.10/topics/db/multi-db/
-UserModel = settings.AUTH_USER_MODEL
-
-_comments_models_cache = {}
-
-
-class BaseAttachmentModel(models.Model):
-    # _db = 'default'
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    user = models.ForeignKey(UserModel, related_name="attachment_%(class)s")
-    app_instance = models.ForeignKey(
-        AppInstance,
-        related_name="attachment_%(class)s",
-        blank=True,
-        null=True)
-    feature = models.PositiveIntegerField(blank=True, null=True)
+    @classmethod
+    def get_json(self, queryset):
+        return json.dumps(model_to_dict(queryset.get()))
 
     class Meta:
-        abstract = True
+        database = db
 
 
-def create_comment_model(layer_name):
-    if layer_name in _comments_models_cache:
-        # print 'from cache: ', layer_name
-        return _comments_models_cache[layer_name]
-    # print 'creating model: ', layer_name
+class BaseModel(BaseDateTime):
+    '''This is the parent model for all models contains
+    basic fields for attachment models'''
+    username = CharField(index=True)
+    feature_id = CharField(index=True)
 
-    table_name = 'attachment_manager_comment_{0}'.format(layer_name)
-    if not check_table_exists(table_name):
-        create_comment_table(layer_name)
+    def set_tags(self, *tags):
+        self.tags = 0
+        for tag in tags:
+            self.tags |= tag.identifier
 
-    class Meta:
-        db_table = table_name
-        managed = False
-
-    model_attrs = {
-        '__module__': __name__,  # set module name to current module name
-        'Meta': Meta,
-    }
-    model_attrs.update({'comment': models.TextField()})
-
-    model = type(table_name, (BaseAttachmentModel,), model_attrs)
-    _comments_models_cache[layer_name] = model
-    return model
+    def get_tags(self):
+        tag_val = self.tags
+        i = 1
+        identifiers = []
+        while tag_val != 0:
+            if tag_val & 1:
+                identifiers.append(i)
+            i <<= 1  # Increase `i` to the next power of 2.
+            tag_val >>= 1  # Pop the right-most bit off of tagval.
+        return Tag.select().where(Tag.identifier.in_(identifiers))
 
 
-_files_models_cache = {}
+class Tag(BaseDateTime):
+    tag = CharField(unique=True)
+    identifier = IntegerField()
+
+    @classmethod
+    def add_tag(cls, tag):
+        new_tag = Tag.create(
+            tag=tag,
+            identifier=fn.COALESCE(
+                Tag.select(fn.MAX(Tag.identifier) * 2), 1))
+        # Re-fetch the newly-created tag so the identifier
+        # is populated with the value.
+        return Tag.get(Tag.id == new_tag.id)
 
 
-def create_file_model(layer_name):
-    if layer_name in _files_models_cache:
-        return _files_models_cache[layer_name]
-
-    table_name = 'attachment_manager_file_{0}'.format(layer_name)
-    if not check_table_exists(table_name):
-        create_file_table(layer_name)
-
-    class Meta:
-        db_table = table_name
-        managed = False
-
-    model_attrs = {
-        '__module__': __name__,
-        'Meta': Meta,
-    }
-    model_attrs.update({
-        'file': models.BinaryField(),
-        'file_name': models.CharField(max_length=150),
-        'is_image': models.BooleanField(default=False)
-    })
-
-    model = type(table_name, (BaseAttachmentModel,), model_attrs)
-    _files_models_cache[layer_name] = model
-    return model
+if not Tag.table_exists():
+    Tag.create_table()
 
 
-_rating_models_cache = {}
+class AttachmentManager(object):
+    '''this class handle models generation'''
 
+    def __init__(self, table_name):
+        self.table_name = self.model_name = table_name
 
-def create_rating_model(layer_name):
-    if layer_name in _rating_models_cache:
-        return _rating_models_cache[layer_name]
+    def generate_filter_with_tag(self, tags):
+        tsum = (Tag
+                .select(fn.SUM(Tag.identifier))
+                .where(Tag.tag << tags)
+                .alias('tsum'))  # Alias we will refer to in Attachment query.
+        return tsum
 
-    table_name = 'attachment_manager_rating_{0}'.format(layer_name)
-    if not check_table_exists(table_name):
-        create_rating_table(layer_name)
+    def generate_comment_model(self):
+        model_fields = {
+            'comment': CharField(index=True),
+            'tags': IntegerField(index=True),
 
-    class Meta:
-        db_table = table_name
-        managed = False
+        }
+        model = type(self.model_name, (BaseModel,), model_fields)
+        model._meta.db_table = "attachment_%s_comment" % self.table_name
+        if not model.table_exists():
+            model.create_table()
+        _attachment_comment_models_cache[self.table_name] = model
+        return model
 
-    model_attrs = {
-        '__module__': __name__,
-        'Meta': Meta,
-    }
-    model_attrs.update({'rate': models.PositiveSmallIntegerField(), })
-
-    model = type(table_name, (BaseAttachmentModel,), model_attrs)
-    _rating_models_cache[layer_name] = model
-    return model
-
-
-def test():
-    from geonode.people.models import Profile
-    data_path = os.path.join(
-        os.path.dirname(
-            os.path.realpath(__file__)),
-        'test_data')
-    file_path = os.path.join(data_path, 'image.png')
-    with open(file_path) as f:
-        file = f.read()
-    model = create_file_model('hisham')
-    model.objects.create(file=file, file_name=os.path.basename(
-        file_path), is_image=True, user=Profile.objects.all()[0])
-
-
-def test_read():
-    # from PIL import Image
-    # import io
-    # model = create_file_model('File', 'hisham', app_label='fake_app',
-    #                        module='fake_project.fake_app.no_models')
-    # image_data = model.objects.all()[0].file
-    # image = Image.open(io.BytesIO(image_data))
-    # image.show()
-    data_path = os.path.join(
-        os.path.dirname(
-            os.path.realpath(__file__)),
-        'test_data')
-    model = create_file_model('hisham')
-    obj = model.objects.all().last()
-    with open(os.path.join(data_path, 'output_' + obj.file_name), 'wb') as f:
-        f.write(obj.file)
-
-
-# Note Works Only with Postgres 9.4 or heigher
-def check_table_exists(table_name, schema='public'):
-    """this function check if table exists in the database or not Return True
-     or Flase"""
-    with connection.cursor() as cursor:
-        cursor.execute("""\
-           SELECT EXISTS (
-       SELECT 1
-       FROM   pg_tables
-       WHERE  schemaname = '{1}'
-       AND    tablename = '{0}'
-       );""".format(table_name, schema))
-        exists = cursor.fetchone()[0]
-        return exists
+    def create_comment_model(self):
+        model = _attachment_comment_models_cache.get(self.model_name, None)
+        return model if model else self.generate_comment_model()
