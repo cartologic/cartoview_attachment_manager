@@ -4,10 +4,12 @@ from tastypie.api import Api
 from cartoview.urls import urlpatterns as carto_urls
 from .rest import CommentResource, FileResource
 # Seperate Attachments API
+from .views import index
 attachments_api = Api(api_name='attachments')
 attachments_api.register(CommentResource())
 attachments_api.register(FileResource())
 urlpatterns = patterns('',
+                       url(r'^$', index),
                        )
 #                        url(r'^attachment_manager/file$', upload),
 #                        url(r'^attachment_manager/view/files$',

@@ -5,6 +5,7 @@ from .forms import Upload_Form, Comment_Form
 from .dynamic import create_file_model, create_comment_model
 from geonode.layers.models import Layer
 from .dynamic import check_table_exists
+from . import APP_NAME
 
 
 def upload(request):
@@ -84,3 +85,7 @@ def download_blob(request, layer_name, id):
     response = HttpResponse(contents)
     response['Content-Disposition'] = 'attachment; filename=%s' % (name)
     return response
+
+
+def index(request):
+    return render(request, template_name="%s/index.html" % APP_NAME)
