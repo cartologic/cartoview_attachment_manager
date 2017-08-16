@@ -2,9 +2,10 @@ import datetime
 import json
 
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
-                    DoesNotExist, Model, PostgresqlDatabase, IntegerField)
+                    DoesNotExist, IntegerField, Model, PostgresqlDatabase)
+from playhouse.gfk import GFKField, ReverseGFK
 from playhouse.shortcuts import model_to_dict
-from playhouse.gfk import ReverseGFK, GFKField
+
 from .utils import DateTimeEncoder, get_connection_paramters
 
 # Replace static paramter with django database Paramters
@@ -69,22 +70,6 @@ class AttachmentManager(object):
     def create_comment_model(self):
         model = _attachment_comment_models_cache.get(self.model_name, None)
         return model if model else self.generate_comment_model()
-
-    # @classmethod
-    # def get_json(cls, queryset, many=True):
-    #     try:
-    #         if many:
-    #             result = []
-    #             for obj in queryset:
-    #                 print obj.tags
-    #                 result.append(model_to_dict(
-    #                     obj, recurse=True, backrefs=True))
-    #         else:
-    #             result = model_to_dict(queryset, backrefs=True)
-    #         return json.dumps(result,
-    #                           cls=DateTimeEncoder)
-    #     except DoesNotExist:
-    #         return json.dumps({})
 
     @classmethod
     def to_json(cls, queryset, many=True):
