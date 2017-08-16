@@ -1,6 +1,6 @@
 import datetime
 import json
-
+import base64
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     DoesNotExist, IntegerField, Model, PostgresqlDatabase)
 from playhouse.gfk import GFKField, ReverseGFK
@@ -19,8 +19,9 @@ _attachment_file_models_cache = {}
 
 
 class BaseDateTime(Model):
-    created = DateTimeField(default=datetime.datetime.now)
-    modified = DateTimeField()
+    created = DateTimeField(default=datetime.datetime.now,
+                            formats='%Y-%m-%d %H:%M:%S')
+    modified = DateTimeField(formats='%Y-%m-%d %H:%M:%S')
 
     def save(self, *args, **kwargs):
         self.modified = datetime.datetime.now()
@@ -55,11 +56,15 @@ if not Tag.table_exists():
 
 
 class AttachmentSerializer(object):
-    def attachment_to_json(self, queryset, many=True):
+    def attachment_to_json(self, queryset, attachment_type, many=True):
         try:
             if many:
                 result = []
                 for dic, obj in zip(queryset.dicts(), queryset):
+                    if attachment_type == "file":
+                        file_binary = dict.get('file', None)
+                        base64_file = base64.encode(file_binary)
+                        dic.update({file: base64_file})
                     dic.update(
                         {'tags': [t.tag for t in obj.tags]})
                     result.append(dic)
@@ -70,6 +75,14 @@ class AttachmentSerializer(object):
                               cls=DateTimeEncoder)
         except DoesNotExist:
             return json.dumps({})
+
+    def decode_file_data(self, data):
+        file_data = data.get('file', None)
+        if file_data and ';base64,' in file_data:
+            file_format, data = file_data.split(';base64,')
+            data.update({file: base64.decode(data)})
+        data.update({file: base64.decode(file_data)})
+        return data
 
 
 class AttachmentManager(object):
