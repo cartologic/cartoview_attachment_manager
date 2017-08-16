@@ -43,10 +43,33 @@ class Tag(BaseDateTime):
     object_id = IntegerField(null=True)
     object = GFKField('object_type', 'object_id')
 
+    class Meta:
+        indexes = (
+            (('tag', 'object_type', 'object_id', 'object'), True),
+        )
+
 
 Tag._meta.db_table = "cartoview_tags"
 if not Tag.table_exists():
     Tag.create_table()
+
+
+class AttachmentSerializer(object):
+    def attachment_to_json(self, queryset, many=True):
+        try:
+            if many:
+                result = []
+                for dic, obj in zip(queryset.dicts(), queryset):
+                    dic.update(
+                        {'tags': [t.tag for t in obj.tags]})
+                    result.append(dic)
+            else:
+                result = model_to_dict(queryset, backrefs=True)
+                result.update({'tags': [t.tag for t in queryset.tags]})
+            return json.dumps(result,
+                              cls=DateTimeEncoder)
+        except DoesNotExist:
+            return json.dumps({})
 
 
 class AttachmentManager(object):
@@ -70,23 +93,6 @@ class AttachmentManager(object):
     def create_comment_model(self):
         model = _attachment_comment_models_cache.get(self.model_name, None)
         return model if model else self.generate_comment_model()
-
-    @classmethod
-    def to_json(cls, queryset, many=True):
-        try:
-            if many:
-                result = []
-                for dic, obj in zip(queryset.dicts(), queryset):
-                    dic.update(
-                        {'tags': [t.tag for t in obj.tags]})
-                    result.append(dic)
-            else:
-                result = model_to_dict(queryset, backrefs=True)
-                result.update({'tags': [t.tag for t in queryset.tags]})
-            return json.dumps(result,
-                              cls=DateTimeEncoder)
-        except DoesNotExist:
-            return json.dumps({})
 
     def generate_file_model(self):
         model_fields = {
