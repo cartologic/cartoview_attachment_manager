@@ -1,15 +1,14 @@
-from django.conf.urls import url, include, patterns
-# from .views import *
-from tastypie.api import Api
-from cartoview.urls import urlpatterns as carto_urls
-from .rest import CommentResource, FileResource
+from django.conf.urls import url, patterns
 # Seperate Attachments API
-from .views import index
-attachments_api = Api(api_name='attachments')
-attachments_api.register(CommentResource())
-attachments_api.register(FileResource())
+from .views import index, AttachmentApi
+api = AttachmentApi()
 urlpatterns = patterns('',
                        url(r'^$', index),
+                       url(r'^(?P<layername>\w+)/comment$',
+                           api.comments_list_create),
+                       url(r'^(?P<layername>\w+)/comment/(?P<id>/d+)$',
+                           api.comments_list_create),
+                       #    url(r'^(?P<layername>\w+)/file(?:/(?P<id>/d+)/)?'),
                        )
 #                        url(r'^attachment_manager/file$', upload),
 #                        url(r'^attachment_manager/view/files$',
@@ -20,5 +19,3 @@ urlpatterns = patterns('',
 #                        url(r'^attachment_manager/download/\
 #                        (?P<layer_name>\w+)/(?P<id>\d+)$', download_blob,
 #                            name='attachment_down'),
-carto_urls += patterns('',
-                       url(r'^REST/', include(attachments_api.urls)), )

@@ -1,14 +1,20 @@
 import datetime
-from peewee import PostgresqlDatabase, Model, CharField, DateTimeField,\
-    IntegerField, fn
-from playhouse.shortcuts import model_to_dict
 import json
+
+from peewee import (BlobField, BooleanField, CharField, DateTimeField,
+                    DoesNotExist, Model, PostgresqlDatabase, IntegerField)
+from playhouse.shortcuts import model_to_dict
+from playhouse.gfk import ReverseGFK, GFKField
+from .utils import DateTimeEncoder, get_connection_paramters
+
 # Replace static paramter with django database Paramters
-db = PostgresqlDatabase('cartoview_datastore',
-                        user='postgres', password="clogic", host="localhost",
-                        autocommit=True, autorollback=True)
+connection_params = get_connection_paramters()
+db = PostgresqlDatabase(
+    connection_params[0], autocommit=True, autorollback=True,
+    **connection_params[1])
 db.connect()
 _attachment_comment_models_cache = {}
+_attachment_file_models_cache = {}
 
 
 class BaseDateTime(Model):
@@ -18,10 +24,6 @@ class BaseDateTime(Model):
     def save(self, *args, **kwargs):
         self.modified = datetime.datetime.now()
         return super(BaseDateTime, self).save(*args, **kwargs)
-
-    @classmethod
-    def get_json(self, queryset):
-        return json.dumps(model_to_dict(queryset.get()))
 
     class Meta:
         database = db
@@ -33,38 +35,15 @@ class BaseModel(BaseDateTime):
     username = CharField(index=True)
     feature_id = CharField(index=True)
 
-    def set_tags(self, *tags):
-        self.tags = 0
-        for tag in tags:
-            self.tags |= tag.identifier
-
-    def get_tags(self):
-        tag_val = self.tags
-        i = 1
-        identifiers = []
-        while tag_val != 0:
-            if tag_val & 1:
-                identifiers.append(i)
-            i <<= 1  # Increase `i` to the next power of 2.
-            tag_val >>= 1  # Pop the right-most bit off of tagval.
-        return Tag.select().where(Tag.identifier.in_(identifiers))
-
 
 class Tag(BaseDateTime):
-    tag = CharField(unique=True)
-    identifier = IntegerField()
-
-    @classmethod
-    def add_tag(cls, tag):
-        new_tag = Tag.create(
-            tag=tag,
-            identifier=fn.COALESCE(
-                Tag.select(fn.MAX(Tag.identifier) * 2), 1))
-        # Re-fetch the newly-created tag so the identifier
-        # is populated with the value.
-        return Tag.get(Tag.id == new_tag.id)
+    tag = CharField()
+    object_type = CharField(null=True)
+    object_id = IntegerField(null=True)
+    object = GFKField('object_type', 'object_id')
 
 
+Tag._meta.db_table = "cartoview_tags"
 if not Tag.table_exists():
     Tag.create_table()
 
@@ -75,18 +54,10 @@ class AttachmentManager(object):
     def __init__(self, table_name):
         self.table_name = self.model_name = table_name
 
-    def generate_filter_with_tag(self, tags):
-        tsum = (Tag
-                .select(fn.SUM(Tag.identifier))
-                .where(Tag.tag << tags)
-                .alias('tsum'))  # Alias we will refer to in Attachment query.
-        return tsum
-
     def generate_comment_model(self):
         model_fields = {
-            'comment': CharField(index=True),
-            'tags': IntegerField(index=True),
-
+            'text': CharField(index=True),
+            'tags': ReverseGFK(Tag, 'object_type', 'object_id')
         }
         model = type(self.model_name, (BaseModel,), model_fields)
         model._meta.db_table = "attachment_%s_comment" % self.table_name
@@ -98,3 +69,54 @@ class AttachmentManager(object):
     def create_comment_model(self):
         model = _attachment_comment_models_cache.get(self.model_name, None)
         return model if model else self.generate_comment_model()
+
+    # @classmethod
+    # def get_json(cls, queryset, many=True):
+    #     try:
+    #         if many:
+    #             result = []
+    #             for obj in queryset:
+    #                 print obj.tags
+    #                 result.append(model_to_dict(
+    #                     obj, recurse=True, backrefs=True))
+    #         else:
+    #             result = model_to_dict(queryset, backrefs=True)
+    #         return json.dumps(result,
+    #                           cls=DateTimeEncoder)
+    #     except DoesNotExist:
+    #         return json.dumps({})
+
+    @classmethod
+    def to_json(cls, queryset, many=True):
+        try:
+            if many:
+                result = []
+                for dic, obj in zip(queryset.dicts(), queryset):
+                    dic.update(
+                        {'tags': [t.tag for t in obj.tags]})
+                    result.append(dic)
+            else:
+                result = model_to_dict(queryset, backrefs=True)
+                result.update({'tags': [t.tag for t in queryset.tags]})
+            return json.dumps(result,
+                              cls=DateTimeEncoder)
+        except DoesNotExist:
+            return json.dumps({})
+
+    def generate_file_model(self):
+        model_fields = {
+            'file': BlobField(),
+            'is_image': BooleanField(default=False),
+            'file_name': CharField(null=False),
+            'tags': ReverseGFK(Tag, 'object_type', 'object_id')
+        }
+        model = type(self.model_name, (BaseModel,), model_fields)
+        model._meta.db_table = "attachment_%s_file" % self.table_name
+        if not model.table_exists():
+            model.create_table()
+        _attachment_file_models_cache[self.table_name] = model
+        return model
+
+    def create_file_model(self):
+        model = _attachment_file_models_cache.get(self.model_name, None)
+        return model if model else self.generate_file_model()
