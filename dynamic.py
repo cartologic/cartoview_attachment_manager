@@ -78,9 +78,9 @@ class AttachmentSerializer(object):
 
     def decode_file_data(self, data):
         file_data = data.get('file', None)
-        if file_data and ';base64,' in file_data:
-            file_format, data = file_data.split(';base64,')
-            data.update({file: base64.decode(data)})
+        if file_data:
+            file_format, file_data = file_data.split(
+                ';base64,') if ';base64,' in file_data else (None, file_data)
         data.update({file: base64.decode(file_data)})
         return data
 
