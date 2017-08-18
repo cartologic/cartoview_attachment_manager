@@ -1,6 +1,7 @@
+import base64
 import datetime
 import json
-import base64
+
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     DoesNotExist, IntegerField, Model, PostgresqlDatabase)
 from playhouse.gfk import GFKField, ReverseGFK
@@ -8,7 +9,6 @@ from playhouse.shortcuts import model_to_dict
 
 from .utils import DateTimeEncoder, get_connection_paramters
 
-# Replace static paramter with django database Paramters
 connection_params = get_connection_paramters()
 db = PostgresqlDatabase(
     connection_params[0], autocommit=True, autorollback=True,

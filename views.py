@@ -4,7 +4,7 @@ from django.http.response import HttpResponse
 from django.shortcuts import render
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-
+from .decorators import methods_permission
 from . import APP_NAME
 from .dynamic import AttachmentManager, AttachmentSerializer, Tag, db
 
@@ -19,6 +19,7 @@ class AttachmentApi(object):
 
     # TODO: remove csrf_exempt
     @method_decorator(csrf_exempt)
+    @method_decorator(methods_permission)
     def attachments_list_create(self, request, layername, attachment_type):
         # TODO:Remove try except and handle errors
         try:
@@ -61,6 +62,7 @@ class AttachmentApi(object):
 
     # TODO: remove csrf_exempt
     @method_decorator(csrf_exempt)
+    @method_decorator(methods_permission)
     def attachments_details_update(self, request, layername, attachment_type,
                                    id):
         layername = str(layername)
