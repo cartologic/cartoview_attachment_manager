@@ -2,6 +2,7 @@ import base64
 import datetime
 import json
 
+from django.core.urlresolvers import reverse
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     DoesNotExist, IntegerField, Model, PostgresqlDatabase)
 from playhouse.gfk import GFKField, ReverseGFK
@@ -56,15 +57,16 @@ if not Tag.table_exists():
 
 
 class AttachmentSerializer(object):
-    def attachment_to_json(self, queryset, attachment_type, many=True):
+    def attachment_to_json(self, queryset, attachment_type, layername, many=True):
         try:
             if many:
                 result = []
                 for dic, obj in zip(queryset.dicts(), queryset):
                     if attachment_type == "file":
-                        file_binary = dict.get('file', None)
-                        base64_file = base64.encode(file_binary)
-                        dic.update({file: base64_file})
+                        url = reverse('attachment_download',
+                                      kwargs={'layername': layername,
+                                              'id': obj.id})
+                        dic.update({'file': url})
                     dic.update(
                         {'tags': [t.tag for t in obj.tags]})
                     result.append(dic)
@@ -81,7 +83,7 @@ class AttachmentSerializer(object):
         if file_data:
             file_format, file_data = file_data.split(
                 ';base64,') if ';base64,' in file_data else (None, file_data)
-        data.update({file: base64.decode(file_data)})
+        data.update({'file': base64.b64decode(file_data)})
         return data
 
 

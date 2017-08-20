@@ -1,6 +1,8 @@
-from django.conf import settings
-from datetime import datetime
+import base64
 import json
+from datetime import datetime
+
+from django.conf import settings
 
 
 def get_connection_paramters():
@@ -23,6 +25,8 @@ class DateTimeEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, datetime):
             return o.isoformat()
-
+        elif isinstance(o, buffer):
+            return base64.b64encode(o)
+        print type(o)
         return json.JSONEncoder.default(self, o)
 # def check_required_fields
