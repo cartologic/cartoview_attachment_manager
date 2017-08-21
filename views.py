@@ -25,7 +25,7 @@ class AttachmentApi(object):
         tags = get_filters.getlist('tags', None)
         if tags:
             main_query.append(
-                "join(Tag, on=((Tag.object_id == model.id) & (Tag.object_type == 'attachment_%s_comment' % layername) & Tag.tag << get_filters.getlist('tags'))).switch(Tag)")
+                "join(Tag, on=((Tag.object_id == model.id) & (Tag.object_type == 'attachment_%s_%s' % (layername,attachment_type)) & Tag.tag << get_filters.getlist('tags'))).switch(Tag)")
         for filt in get_filters:
             if filt != 'tags':
                 sub_filters.append("model.username=='%s'" % get_filters[filt])
@@ -46,8 +46,6 @@ class AttachmentApi(object):
                 == 'comment' else attachment_obj.create_file_model()
             if request_method == "GET":
                 if get_filters and 'tags' in get_filters:
-                    # queryset = model.select().join(Tag, on=((Tag.object_id == model.id) & (
-                    #     Tag.object_type == 'attachment_%s_comment' % layername) & Tag.tag << get_filters.getlist('tags'))).switch(Tag)
                     exec(self.build_query_filters(get_filters))
                 else:
                     queryset = model.select()
