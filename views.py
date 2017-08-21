@@ -35,12 +35,9 @@ class AttachmentApi(object):
             main_query.append(where_sub_filter_query)
         return ".".join(main_query)
 
-    # TODO: remove csrf_exempt
-
     @method_decorator(csrf_exempt)
     @method_decorator(methods_permission)
     def attachments_list_create(self, request, layername, attachment_type):
-        # TODO:Remove try except and handle errors
         try:
             request_method = request.method
             get_filters = request.GET
@@ -85,7 +82,6 @@ class AttachmentApi(object):
             return HttpResponse(json.dumps({'error': e.message}),
                                 content_type="application/json")
 
-    # TODO: remove csrf_exempt
     @method_decorator(csrf_exempt)
     @method_decorator(methods_permission)
     def attachments_details_update(self, request, layername, attachment_type,
