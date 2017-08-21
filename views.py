@@ -35,7 +35,6 @@ class AttachmentApi(object):
             main_query.append(where_sub_filter_query)
         return ".".join(main_query)
 
-    @method_decorator(csrf_exempt)
     @method_decorator(methods_permission)
     def attachments_list_create(self, request, layername, attachment_type):
         try:
@@ -78,9 +77,8 @@ class AttachmentApi(object):
                                     status=405)
         except Exception as e:
             return HttpResponse(json.dumps({'error': e.message}),
-                                content_type="application/json")
+                                content_type="application/json", status=500)
 
-    @method_decorator(csrf_exempt)
     @method_decorator(methods_permission)
     def attachments_details_update(self, request, layername, attachment_type,
                                    id):
