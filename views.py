@@ -99,11 +99,12 @@ class AttachmentApi(object):
         attachment_obj = AttachmentManager(str(layername))
         model = attachment_obj.create_comment_model() if attachment_type == \
             'comment' else attachment_obj.create_file_model()
-        try:
-            model_obj = model.get(model.id == id)
-        except:
+
+        model_obj = attachment_obj.get_by_id(model, id)
+        if not model_obj:
             return HttpResponse("no object with id %s" % id,
                                 status=404)
+
         if request_method == "GET":
             return HttpResponse(
                 self.serializer.attachment_to_json(model_obj, attachment_type,
@@ -149,9 +150,8 @@ class AttachmentApi(object):
         layername = str(layername)
         attachment_obj = AttachmentManager(str(layername))
         model = attachment_obj.create_file_model()
-        try:
-            model_obj = model.get(model.id == id)
-        except:
+        model_obj = attachment_obj.get_by_id(model, id)
+        if not model_obj:
             return HttpResponse("no object with id %s" % id,
                                 status=404)
         contents = model_obj.file

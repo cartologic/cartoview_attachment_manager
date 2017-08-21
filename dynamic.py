@@ -7,7 +7,7 @@ from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     DoesNotExist, IntegerField, Model, PostgresqlDatabase)
 from playhouse.gfk import GFKField, ReverseGFK
 from playhouse.shortcuts import model_to_dict
-
+from django.http.response import HttpResponse
 from .utils import DateTimeEncoder, get_connection_paramters
 
 connection_params = get_connection_paramters()
@@ -92,6 +92,12 @@ class AttachmentManager(object):
 
     def __init__(self, table_name):
         self.table_name = self.model_name = table_name
+
+    def get_by_id(self, model, id):
+        try:
+            return model.get(model.id == id)
+        except:
+            return None
 
     def generate_comment_model(self):
         model_fields = {
