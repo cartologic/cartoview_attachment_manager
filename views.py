@@ -48,15 +48,12 @@ class AttachmentApi(object):
             model = attachment_obj.create_comment_model() if attachment_type \
                 == 'comment' else attachment_obj.create_file_model()
             if request_method == "GET":
-                print get_filters.getlist('tags')
                 if get_filters and 'tags' in get_filters:
                     # queryset = model.select().join(Tag, on=((Tag.object_id == model.id) & (
                     #     Tag.object_type == 'attachment_%s_comment' % layername) & Tag.tag << get_filters.getlist('tags'))).switch(Tag)
-                    print self.build_query_filters(get_filters)
                     exec(self.build_query_filters(get_filters))
                 else:
                     queryset = model.select()
-                print list(queryset)
                 return HttpResponse(self.serializer.attachment_to_json(
                     queryset, attachment_type,
                     layername, many=True),
@@ -67,7 +64,6 @@ class AttachmentApi(object):
                 data = self.serializer.decode_file_data(
                     data) if attachment_type == "file" else data
                 if request_tags and isinstance(request_tags, list):
-                    print data
                     obj = model(**data)
                     obj.save()
                     for tag in request_tags:
