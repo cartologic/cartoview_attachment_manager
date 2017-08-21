@@ -27,6 +27,4 @@ class DateTimeEncoder(json.JSONEncoder):
             return o.isoformat()
         elif isinstance(o, buffer):
             return base64.b64encode(o)
-        print type(o)
         return json.JSONEncoder.default(self, o)
-# def check_required_fields
