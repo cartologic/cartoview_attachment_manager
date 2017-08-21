@@ -77,7 +77,7 @@ class AttachmentApi(object):
                                     status=405)
         except Exception as e:
             return HttpResponse(json.dumps({'error': e.message}),
-                                content_type="application/json")
+                                content_type="application/json", status=500)
 
     @method_decorator(methods_permission)
     def attachments_details_update(self, request, layername, attachment_type,
