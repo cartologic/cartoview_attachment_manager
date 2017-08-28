@@ -7,7 +7,6 @@ from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     DoesNotExist, IntegerField, Model, PostgresqlDatabase)
 from playhouse.gfk import GFKField, ReverseGFK
 from playhouse.shortcuts import model_to_dict
-from django.http.response import HttpResponse
 from .utils import DateTimeEncoder, get_connection_paramters
 
 connection_params = get_connection_paramters()
@@ -47,7 +46,7 @@ class Tag(BaseDateTime):
 
     class Meta:
         indexes = (
-            (('tag', 'object_type', 'object_id', 'object'), True),
+            (('tag', 'object_type', 'object_id'), True),
         )
 
 
