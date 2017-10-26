@@ -76,7 +76,7 @@ class AttachmentSerializer(object):
             else:
                 result = model_to_dict(queryset, backrefs=True)
                 if attachment_type == "file":
-                    url = self.get_file_url(layername, result.id)
+                    url = self.get_file_url(layername, queryset.id)
                     result.update({'file': url})
                 result.update({'tags': [t.tag for t in queryset.tags]})
             return json.dumps(result,
