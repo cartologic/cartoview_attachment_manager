@@ -56,15 +56,19 @@ if not Tag.table_exists():
 
 
 class AttachmentSerializer(object):
+    def get_file_url(self, layername, id):
+        url = reverse('attachment_download',
+                      kwargs={'layername': layername,
+                              'id': id})
+        return url
+
     def attachment_to_json(self, queryset, attachment_type, layername, many=True):
         try:
             if many:
                 result = []
                 for dic, obj in zip(queryset.dicts(), queryset):
                     if attachment_type == "file":
-                        url = reverse('attachment_download',
-                                      kwargs={'layername': layername,
-                                              'id': obj.id})
+                        url = self.get_file_url(layername, obj.id)
                         dic.update({'file': url})
                     dic.update(
                         {'tags': [t.tag for t in obj.tags]})
@@ -72,9 +76,7 @@ class AttachmentSerializer(object):
             else:
                 result = model_to_dict(queryset, backrefs=True)
                 if attachment_type == "file":
-                    url = reverse('attachment_download',
-                                  kwargs={'layername': layername,
-                                          'id': queryset.id})
+                    url = self.get_file_url(layername, obj.id)
                     result.update({'file': url})
                 result.update({'tags': [t.tag for t in queryset.tags]})
             return json.dumps(result,
