@@ -71,6 +71,11 @@ class AttachmentSerializer(object):
                     result.append(dic)
             else:
                 result = model_to_dict(queryset, backrefs=True)
+                if attachment_type == "file":
+                    url = reverse('attachment_download',
+                                  kwargs={'layername': layername,
+                                          'id': queryset.id})
+                    result.update({'file': url})
                 result.update({'tags': [t.tag for t in queryset.tags]})
             return json.dumps(result,
                               cls=DateTimeEncoder)
