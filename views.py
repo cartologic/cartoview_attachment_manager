@@ -4,7 +4,6 @@ from django.http.response import HttpResponse
 from django.shortcuts import render
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-
 from . import APP_NAME
 from .decorators import methods_permission
 from .dynamic import AttachmentManager, AttachmentSerializer, Tag, db
@@ -147,3 +146,10 @@ class AttachmentApi(object):
         response = HttpResponse(contents)
         response['Content-Disposition'] = 'attachment; filename=%s' % (name)
         return response
+
+    def tags_list(self, request):
+        queryset = Tag.select(Tag.tag).distinct().dicts()
+        tags_list = list(queryset)
+        api_result = json.dumps(tags_list)
+        return HttpResponse(api_result,
+                            content_type="application/json")

@@ -12,5 +12,7 @@ def methods_permission(view):
         elif not request.user.is_authenticated() and method != "GET":
             return HttpResponse(json.dumps({"error": "Unauthorized"}),
                                 status=401)
-
+        else:
+            return HttpResponse(json.dumps({"error": "Method Not allowed"}),
+                                status=405)
     return check
