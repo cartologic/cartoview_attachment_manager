@@ -126,6 +126,8 @@ class AttachmentApi(object):
                 status=404)
         elif request_method == "DELETE":
             model_obj.delete_instance()
+            return HttpResponse("Deleted Successfully" % request_method,
+                                status=200)
         else:
             return HttpResponse("%s Method Not Allowed" % request_method,
                                 status=405)
