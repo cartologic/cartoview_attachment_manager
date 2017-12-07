@@ -4,7 +4,8 @@ import json
 
 from django.core.urlresolvers import reverse
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
-                    DoesNotExist, IntegerField, Model, PostgresqlDatabase)
+                    DoesNotExist, IntegerField, Model, PostgresqlDatabase,
+                    TextField)
 from playhouse.gfk import GFKField, ReverseGFK
 from playhouse.shortcuts import model_to_dict
 from .utils import DateTimeEncoder, get_connection_paramters
@@ -105,15 +106,31 @@ class AttachmentManager(object):
         except:
             return None
 
+    def migrate_comment_model(self):
+        table_name = 'attachment_{}_comment'.format(self.table_name)
+        cursor = db.execute_sql('''
+        select column_name, data_type from information_schema.columns where table_name = '{}';
+        '''.format(table_name))
+        for row in cursor.fetchall():
+            name, type = row
+            if name == "text" and "character" in type:
+                db.execute_sql('''
+                    ALTER TABLE public.{}
+                    ALTER COLUMN text TYPE text;
+                '''.format(table_name))
+                break
+
     def generate_comment_model(self):
         model_fields = {
-            'text': CharField(index=True),
+            'text': TextField(index=True),
             'tags': ReverseGFK(Tag, 'object_type', 'object_id')
         }
         model = type(self.model_name, (BaseModel,), model_fields)
         model._meta.db_table = "attachment_%s_comment" % self.table_name
         if not model.table_exists():
             model.create_table()
+        else:
+            self.migrate_comment_model()
         _attachment_comment_models_cache[self.table_name] = model
         return model
 
