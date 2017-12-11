@@ -13,7 +13,8 @@ def get_connection_paramters():
         connection_params = {
             'user': database.get('USER', None),
             'password': database.get("PASSWORD", None),
-            'host': database.get('HOST', None)
+            'host': database.get('HOST', 'localhost'),
+            'port': database.get('PORT', '5432')
         }
         return (database.get('NAME', None), connection_params)
     else:
