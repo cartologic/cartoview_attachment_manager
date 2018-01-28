@@ -5,7 +5,7 @@ from django.shortcuts import render
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from . import APP_NAME
-from .decorators import methods_permission
+from .decorators import methods_permission, layer_exist
 from .dynamic import AttachmentManager, AttachmentSerializer, Tag, db
 
 
@@ -35,6 +35,7 @@ class AttachmentApi(object):
         return ".".join(main_query)
 
     @method_decorator(methods_permission)
+    @layer_exist
     def attachments_list_create(self, request, layername, attachment_type):
         try:
             request_method = request.method
@@ -79,6 +80,7 @@ class AttachmentApi(object):
                                 content_type="application/json", status=500)
 
     @method_decorator(methods_permission)
+    @layer_exist
     def attachments_details_update(self, request, layername, attachment_type,
                                    id):
         layername = str(layername)
@@ -134,6 +136,7 @@ class AttachmentApi(object):
 
     @method_decorator(csrf_exempt)
     @method_decorator(methods_permission)
+    @layer_exist
     def attachments_download(self, request, layername,
                              id):
         layername = str(layername)
