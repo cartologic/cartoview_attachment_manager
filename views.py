@@ -48,6 +48,9 @@ class AttachmentApi(object):
                     exec(self.build_query_filters(get_filters))
                 else:
                     queryset = model.select()
+                if get_filters and 'feature_id' in get_filters:
+                    queryset = queryset.where(
+                        model.feature_id == get_filters.get('feature_id'))
                 return HttpResponse(self.serializer.attachment_to_json(
                     queryset, attachment_type,
                     layername, many=True),
