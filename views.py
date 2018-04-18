@@ -7,6 +7,8 @@ from django.views.decorators.csrf import csrf_exempt
 from . import APP_NAME
 from .decorators import methods_permission, layer_exist
 from .dynamic import AttachmentManager, AttachmentSerializer, Tag, db
+import mimetypes
+from django.http import StreamingHttpResponse
 
 
 def index(request):
@@ -151,9 +153,14 @@ class AttachmentApi(object):
                                 status=404)
         contents = model_obj.file
         name = model_obj.file_name
-        response = HttpResponse(contents)
-        response['Content-Disposition'] = 'attachment; filename=%s' % (name)
+        response = StreamingHttpResponse(self.chunks(
+            contents, 8192), content_type=mimetypes.guess_type(name)[0])
+        response['Content-Disposition'] = 'attachment;filename=%s' % (name)
         return response
+
+    def chunks(self, l, n):
+        for i in xrange(0, len(l), n):
+            yield l[i:i + n]
 
     def tags_list(self, request):
         queryset = Tag.select(Tag.tag).distinct().dicts()
