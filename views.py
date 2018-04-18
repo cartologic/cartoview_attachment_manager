@@ -154,7 +154,7 @@ class AttachmentApi(object):
         contents = model_obj.file
         name = model_obj.file_name
         response = StreamingHttpResponse(self.chunks(
-            contents, 8192), content_type=mimetypes.guess_type(name)[0])
+            contents, 2048), content_type=mimetypes.guess_type(name)[0])
         response['Content-Disposition'] = 'attachment;filename=%s' % (name)
         return response
 
