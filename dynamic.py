@@ -2,7 +2,7 @@ import base64
 import datetime
 import json
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from peewee import (BlobField, BooleanField, CharField, DateTimeField,
                     DoesNotExist, IntegerField, Model, PostgresqlDatabase,
                     TextField)

@@ -1,5 +1,5 @@
 from functools import wraps
-from django.http.response import HttpResponse
+from django.http import HttpResponse
 import json
 from geonode.layers.models import Layer
 
