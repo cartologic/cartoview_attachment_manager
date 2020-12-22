@@ -151,9 +151,9 @@ class AttachmentApi(object):
         if not model_obj:
             return HttpResponse("no object with id %s" % id,
                                 status=404)
-        contents = model_obj.file
+        contents = model_obj.file.tobytes()
         name = model_obj.file_name
-        response = HttpResponse(contents, 2048)
+        response = HttpResponse(contents)
         response['Content-Disposition'] = 'attachment;filename=%s' % (name)
         return response
 
